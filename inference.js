@@ -1221,7 +1221,7 @@
 
 	});
 
-	function Compiler(p)
+	function Inference(p)
 	{
 		extend(this, p);
 
@@ -1232,7 +1232,7 @@
 		this.initSymbols();
 	}
 
-	Compiler.prototype = {
+	Inference.prototype = {
 
 		/**
 		 * Initialize some built-in objects and functions
@@ -1294,12 +1294,13 @@
 
 	};
 
-	/** @namespace */
-	extend(exports, {
+	extend(Inference, {
 		Symbol: Symbol,
-		Compiler: Compiler,
 		ObjectType: ObjectType,
 		FunctionType: FunctionType
 	});
+
+	/** @namespace */
+	exports.Inference = Inference;
 
 }));
