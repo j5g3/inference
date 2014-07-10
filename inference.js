@@ -127,7 +127,7 @@
 
 	};
 
-	/** When we dont have a value */
+	/** When we dont have a return value */
 	function Unknown() {}
 
 	function SymbolTable(scope)
@@ -444,23 +444,15 @@
 	 */
 	function ScopeManager()
 	{
-		var root = this.root = new FunctionType();
-		root.properties = root.scope;
-		delete root.scope.this;
+		var root = this.root = new ObjectType();
 
+		this.root.scope = this.root.properties;
 		this.module = new Symbol();
 		this.module.value = root;
 		this.module.tags.root = true;
 		this.module.id = root.parent = '<root>';
 
-		/*
-		// init exports object
-		root.scope.exports = new Symbol('exports');
-		root.scope.exports.set(new ObjectType());
-		console.log(root.scope.exports);
-		*/
-
-		this.stack = [ this.current = this.root.scope ];
+		this.stack = [ this.current = this.root.properties ];
 	}
 
 	extend(ScopeManager.prototype, {
@@ -937,7 +929,6 @@
 
 		missingObject: function(obj)
 		{
-
 			obj.value = new ObjectType();
 			return obj.value;
 		},
@@ -1040,7 +1031,17 @@
 
 		type: function(match)
 		{
-			match.meta.type.parse(match.type);
+			var s = match.meta;
+
+			s.type.parse(match.type);
+
+			if (!s.value)
+			{
+				if (s.type.object)
+					s.value = new ObjectType();
+				else if (s.type.function)
+					s.value = new FunctionType();
+			}
 		},
 
 		returns: function(match)
@@ -1234,16 +1235,22 @@
 
 	Inference.prototype = {
 
+		/** Add node.js system symbols */
+		node: false,
+
 		/**
 		 * Initialize some built-in objects and functions
 		 * @private
 		 */
 		initSymbols: function()
 		{
-			var ast = esprima.parse(
-			"Object.create = function(proto) { var F = function() {}; " +
-			"F.prototype = proto; return new F(); }"
-			);
+			var symbols = "Object.create = function(proto) { var F = function() {}; " +
+			"F.prototype = proto; return new F(); };";
+
+			if (this.node)
+				symbols += "this.exports = this;"
+
+			var ast = esprima.parse(symbols);
 
 			this.walker.system = true;
 			this.walker.walk(ast);
