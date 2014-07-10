@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>jsdoc.js Live Documentation</title>	
+	<script src="//code.jquery.com/jquery-2.0.3.min.js"></script>	
+	<script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js"></script>
+	
+	<script src="esprima.js"></script>
+	<script src="docs.js"></script>
+	
+	<script async src="//netdna.bootstrapcdn.com/bootstrap/3.0.3/js/bootstrap.min.js"></script>
+	<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/8.0/highlight.min.js"></script>
+	<script async src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/8.0/languages/javascript.min.js"></script>
+	
+	<script>
+	var compiler = new cxl.docs.Compiler();		
+	
+	$.when(
+		$.ajax({ url: '../jsdoc-parser.js', dataType: 'text' }),
+		$.ajax({ url: 'template.html', dataType: 'text' })
+	).done(function(source, template) {	
+		
+		compiler.compile('jsdoc.js', source[0]);
+		
+		$('body').html(compiler.generate(_.template(template[0]), {
+			full: false,
+			name: 'jsdoc.js'
+		}));
+	});
+	</script>
+</head>
+<body>
+	
+</body>
+</html>

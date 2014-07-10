@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+	<head>
+	<title>CXL-DOCS - Demo</title>
+	<style>
+		section {
+			display: block; position: absolute;
+			top: 60px; bottom: 0;
+			left: 0; right: 0; 
+		}
+		body { padding: 0; margin: 0; font-family: sans-serif; }
+		
+		textarea { display: block; padding: 0; margin: 0; border: 0; width: 100%; height: 100%; }
+		h2 { margin-top: -60px; }
+		a { text-decoration: none; }
+		a.selected { text-decoration: underline; }
+	</style>
+	</head>
+	<body>
+	<menu>
+		<a href="#input">Input</a>
+		<a class="selected" href="#output">Output</a>
+		<a href="#symbols">Symbols</a>
+		<a href="#stats">Stats</a>
+	</menu>	
+	<section style="display:none">
+		<textarea id="input"></textarea>
+	</section>
+	<section>
+		<textarea id="output"></textarea>
+	</section>
+	<section style="display:none">
+		<textarea id="symbols"></textarea>
+	</section>
+	<section style="display:none">
+		<textarea id="stats"></textarea>
+	</section>
+	
+	<script src="//code.jquery.com/jquery-2.0.3.min.js"></script>	
+	<script src="../node_modules/esprima/esprima.js"></script>
+	<script src="../node_modules/j5g3.jsdoc-parser/jsdoc-parser.js"></script>
+	<script src="../inference.js"></script>
+	<script>
+		var $tabs = $('menu a');
+	
+		$tabs.click(function() {
+			$tabs.removeClass('selected');
+			$('section').hide();
+			$(this.hash).parent().show();
+			$(this).addClass('selected');
+			return false;
+		});
+	
+		$.ajax({ url: '../test/fixture.js', dataType: 'html' })
+			.done(function(fixture, infer) {	
+			
+			var src = fixture;
+			$('#input').val(src);
+			
+			var parse = esprima.parse(src, {
+				attachComment: true,
+				loc: true
+			});	
+			
+			$('#output').val(JSON.stringify(parse, null, 2));
+			
+			var compiler = new j5g3.Inference();
+			var stats = {
+				time: Date.now()
+			};
+			
+			compiler.compile('fixture.js', fixture);
+			
+			stats.time = (Date.now() - stats.time) + 'ms';
+			
+			var symbols = JSON.stringify(compiler.getSymbols(), null, 2);
+			
+			$('#symbols').val(symbols);
+			
+			stats["Symbols JSON length"] = symbols.length;
+			
+			$('#stats').val(JSON.stringify(stats, null, 2));
+		});
+			
+	</script>
+	</body>
+</html>
