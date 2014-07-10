@@ -1297,7 +1297,8 @@
 	extend(Inference, {
 		Symbol: Symbol,
 		ObjectType: ObjectType,
-		FunctionType: FunctionType
+		FunctionType: FunctionType,
+		ScopeManager: ScopeManager
 	});
 
 	/** @namespace */
