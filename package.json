@@ -1,11 +1,15 @@
 {
 	"name": "j5g3.inference",
 	"version": "0.1.1",
+	"description": "A quick and dirty javascript inference engine",
 
 	"dependencies": {
 		"esprima": "*",
 		"j5g3.jsdoc-parser": "j5g3/jsdoc-parser"
 	},
+	
+	"files": [ "inference.js" ],
+	"main": "inference.js",
 	
 	"devDependencies": {
 		"grunt": "*",
