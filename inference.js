@@ -13,7 +13,7 @@
 		/* global require */
 		ns = exports;
 		esprima = require('esprima');
-		jsdoc = require('j5g3.jsdoc-parser');
+		jsdoc = require('j5g3.jsdoc-parser').JSDocParser;
 	} else {
 		ns = root.j5g3;
 		esprima = root.esprima;
@@ -1248,7 +1248,7 @@
 			"F.prototype = proto; return new F(); };";
 
 			if (this.node)
-				symbols += "this.exports = this;"
+				symbols += "this.exports = this;";
 
 			var ast = esprima.parse(symbols);
 
