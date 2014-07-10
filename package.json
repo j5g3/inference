@@ -1,0 +1,15 @@
+{
+	"dependencies": {
+		"esprima": "*",
+		"j5g3.jsdoc-parser": "j5g3/jsdoc-parser"
+	},
+	
+	"devDependencies": {
+		"grunt": "*",
+		"grunt-contrib-jshint": "*",
+		"grunt-contrib-clean": "*",
+		"grunt-contrib-concat": "*",
+		"grunt-contrib-watch": "*",
+		"grunt-contrib-uglify": "*"
+	}	
+}
