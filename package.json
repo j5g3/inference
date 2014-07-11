@@ -2,6 +2,7 @@
 	"name": "j5g3.inference",
 	"version": "0.1.1",
 	"description": "A quick and dirty javascript inference engine",
+	"license": "GPLv3",
 
 	"dependencies": {
 		"esprima": "*",
