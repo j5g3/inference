@@ -15,7 +15,7 @@
 		esprima = require('esprima');
 		jsdoc = require('j5g3.jsdoc-parser').JSDocParser;
 	} else {
-		ns = root.j5g3;
+		ns = /** @type {object} */ root.j5g3;
 		esprima = root.esprima;
 		jsdoc = ns.JSDocParser;
     }
@@ -663,7 +663,7 @@
 				return;
 
 			if (node.computed)
-				prop = { loc: prop.loc, name: this.String(prop) };
+				prop = { type: 'Identifier', loc: prop.loc, name: this.String(prop) };
 
 			result = value.get(prop.name) ||
 				this.missingProperty(value, prop);
