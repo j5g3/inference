@@ -35,7 +35,7 @@ module.exports = function(grunt) {
 			inference: {
 				compress: true,
 				files: {
-					'build/inference.js': 'build/inference.min.js'
+					'build/inference.min.js': 'build/inference.js'
 				}
 			}
 		},
@@ -55,6 +55,6 @@ module.exports = function(grunt) {
 	grunt.loadNpmTasks('grunt-contrib-uglify');
 	grunt.loadNpmTasks('grunt-contrib-jshint');
 
-	grunt.registerTask('default', [ 'jshint', 'concat' ]);
-	grunt.registerTask('minify', [ 'default', 'clean', 'uglify' ]);
+	grunt.registerTask('default', [ 'clean', 'jshint', 'concat' ]);
+	grunt.registerTask('minify', [ 'default', 'uglify' ]);
 };
