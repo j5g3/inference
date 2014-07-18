@@ -18,3 +18,7 @@ Import it into your project, add and compile files.
 	// You can also access the symbols in a tree structure using the scope property.
 	infer.scope;
 	
+Documentation
+-------------
+
+Read the documentation [here](https://j5g3.github.io/inference/docs).
