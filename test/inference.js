@@ -234,6 +234,8 @@ function run()
 		ok(symbols['Person#say']);
 		ok(symbols['Person#private']);
 		ok(symbols['Person#protected']);
+		ok(symbols.lends);
+		ok(symbols['lends.prop1']);
 	});
 
 	test('license', function() {
@@ -364,7 +366,7 @@ var symbols, compiler;
 $.ajax({ url: 'fixture.js', dataType: 'html' })
 	.done(function(fixture, infer) {
 
-	compiler = new j5g3.Inference();
+	compiler = new j5g3.Inference({ debug: true });
 	compiler.compile('fixture.js', fixture);
 	symbols = compiler.getSymbols();
 

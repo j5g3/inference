@@ -544,7 +544,11 @@
 				dummy = new Symbol('dummy');
 				node.comments.forEach(function(comment) {
 					if (comment.value)
+					{
+						this.warning('Parsing comment from global scope: "' +
+							comment.value + '"');
 						this.jsdoc.parse(comment.value, dummy);
+					}
 				}, this);
 			}
 
@@ -901,7 +905,7 @@
 
 		error: function()
 		{
-			if (exports.docs.debug && typeof console !== undefined)
+			if (this.debug && typeof console !== undefined)
 				/* global console */
 				console.log.apply(console, arguments);
 		},
@@ -913,7 +917,7 @@
 
 		warning: function()
 		{
-			if (exports.docs.debug && typeof console !== undefined)
+			if (this.debug && typeof console !== undefined)
 				/* global console */
 				console.warn.apply(console, arguments);
 		},
@@ -1075,6 +1079,7 @@
 	 */
 	function Walker(compiler)
 	{
+		this.debug = compiler.debug;
 		this.scope = compiler.scope;
 		this.jsdoc = new JSDocParser(new JSDocHandler(compiler));
 	}
@@ -1234,6 +1239,9 @@
 	}
 
 	Inference.prototype = {
+
+		/** Enable output of system errors and warnings to console. */
+		debug: false,
 
 		/** Add node.js system symbols */
 		node: false,
