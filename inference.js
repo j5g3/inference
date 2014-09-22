@@ -858,16 +858,22 @@
 		var
 			symbol = this.walk(node.callee),
 			fn = (symbol instanceof Symbol) ? symbol.value : symbol,
-			result = new ObjectType(),
+			result = Unknown,
 			ctor
 		;
 			if (fn)
 			{
+				result = new ObjectType();
 				this.doCall(fn, node.arguments, result);
 				ctor = new Symbol('constructor', symbol);
 				ctor.tags.system = true;
 
 				result.add('constructor', ctor);
+			} else if (node.arguments)
+			{
+				node.arguments.forEach(function(arg) {
+					this.Value(arg);
+				}, this);
 			}
 
 			return result;
@@ -1195,7 +1201,10 @@
 			if (fn instanceof FunctionType)
 				return this.doCallFunctionType(fn, args, thisValue);
 
-			return this.doCallNative(fn, args, thisValue);
+			if (fn instanceof Function)
+				return this.doCallNative(fn, args, thisValue);
+
+			return Unknown;
 		},
 
 		walkProperty: function(prop, ret)

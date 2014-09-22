@@ -239,10 +239,6 @@ function constructor() {}
 /// @final
 function final() {}
 
-var lends = new View.extend({ /** @lends lends */
-	prop1: true
-});
-
 function prototype() {}
 
 /**
