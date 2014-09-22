@@ -66,11 +66,6 @@ function run()
 		ok(!symbols.prototype.tags.prototype);
 	});
 
-	test('Function Calls', function() {
-		ok(symbols.cxl);
-		ok(symbols.cxl.value);
-	});
-
 	test('UnaryExpression', function() {
 		equal(symbols['unary.type'].value, 'string');
 		equal(symbols['unary.type'].type.string, 'string');
@@ -132,10 +127,6 @@ function run()
 		equal(symbols['enumerate.CANCELCANCEL'].value, 'CANCEL');
 	});
 
-	test('ObjectExpression', function() {
-		ok(symbols['cxl.docs.NodeHandler.Program'].type.function);
-	});
-
 	///////////////////////////
 	// TAGS
 	//////////////////////////
@@ -167,7 +158,7 @@ function run()
 	});
 
 	test('class', function(assert) {
-		assert.ok(symbols['cxl.docs.Walker'].tags.class);
+		assert.ok(symbols.Hurl.tags.class);
 	});
 
 	test('constant', function() {
@@ -196,8 +187,6 @@ function run()
 
 	test('desc', function() {
 		equal(symbols['Doctor#say'].tags.desc, 'Says nothing');
-		equal(symbols['cxl.docs.Symbol'].tags.desc, 'A symbol, or property name.');
-		equal(symbols['cxl.docs.Walker'].tags.desc, 'Default AST Walker');
 	});
 
 	test('enum', function() {
@@ -256,8 +245,7 @@ function run()
 	});
 
 	test('mixin', function() {
-		ok(symbols['cxl.docs.NodeHandler'].tags.mixin);
-		ok(symbols['cxl.docs.ErrorHandler'].tags.mixin);
+		ok(symbols.mixin.tags.mixin);
 	});
 
 	test('name', function() {
@@ -265,8 +253,7 @@ function run()
 	});
 
 	test('namespace', function() {
-		ok(symbols.cxl.tags.namespace);
-		ok(symbols['cxl.docs'].tags.namespace);
+		ok(symbols.constructor.tags.namespace);
 	});
 
 	test('param', function() {
@@ -288,7 +275,6 @@ function run()
 	test('private', function() {
 		ok(symbols.private.tags.private);
 		ok(!symbols.private.tags.public);
-		ok(symbols['cxl.docs.FunctionType#initPrototype'].tags.private);
 	});
 
 	test('property', function() {
@@ -310,7 +296,7 @@ function run()
 	});
 
 	test('requires', function() {
-		equal(compiler.files['cxl-docs.js'].tags.requires, 'esprima.js');
+		equal(symbols.requires.tags.requires, 'cxl');
 	});
 
 	test('returns', function() {

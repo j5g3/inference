@@ -274,3 +274,9 @@ var type2 = +(new Date()).getTime();
  * @type {!Array.<number>}
  */
 var type3 = [1, 2, 3];
+
+/** @mixin */
+var mixin = { };
+
+/** @requires cxl */
+function requires() { }
