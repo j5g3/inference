@@ -234,8 +234,6 @@ function run()
 		ok(symbols['Person#say']);
 		ok(symbols['Person#private']);
 		ok(symbols['Person#protected']);
-		ok(symbols.lends);
-		ok(symbols['lends.prop1']);
 	});
 
 	test('license', function() {

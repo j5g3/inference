@@ -96,7 +96,8 @@
 					this.type.set(value);
 					this.value = value;
 				}
-			}
+			} else if (this.value === undefined)
+				this.value = Unknown;
 
 			return value;
 		},
