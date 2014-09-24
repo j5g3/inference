@@ -861,7 +861,7 @@
 		{
 		var
 			symbol = this.walk(node.callee),
-			fn = (symbol instanceof Symbol) ? symbol.value : symbol,
+			fn = this.Function(node),
 			result = Unknown,
 			ctor
 		;
