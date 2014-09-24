@@ -248,9 +248,12 @@
 
 		add: function(property, symbol)
 		{
+			var p = this.properties[property];
+
 			this.modified = true;
-			this.properties[property] = symbol;
-			return symbol;
+
+			return (p && symbol.value === Unknown) ? p
+				: this.properties[property] = symbol;
 		},
 
 		delete: function(property)
@@ -872,9 +875,7 @@
 				result.add('constructor', ctor);
 			} else if (node.arguments)
 			{
-				node.arguments.forEach(function(arg) {
-					this.Value(arg);
-				}, this);
+				node.arguments.forEach(this.walk, this);
 			}
 
 			return result;
