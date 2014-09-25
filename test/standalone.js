@@ -21,7 +21,7 @@
 	});
 
 	test('@lends - global variable', function() {
-		var symbols = this.run("var a = window.a = new View.extend({ /** @lends window.a */ prop1: true });");
+		var symbols = this.run("var a = window.a = new (View.extend({ /** @lends window.a */ prop1: true }));");
 		ok(symbols.a);
 		ok(symbols['a.prop1']);
 	});

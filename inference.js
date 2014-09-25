@@ -892,7 +892,7 @@
 			symbol = this.walk(node.callee),
 			fn = (symbol instanceof Symbol) ? symbol.value : symbol
 		;
-			if (fn && (fn instanceof FunctionType || fn.constructor===Function))
+			if (fn && fn!==Unknown && (fn instanceof FunctionType || fn.constructor===Function))
 				return fn;
 		},
 
