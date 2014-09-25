@@ -1,18 +1,27 @@
 
 (function(window) {
 
-	module('Tags', {
-		setup: function()
-		{
-			var infer = this.infer = new j5g3.Inference({ debug: true });
+	function setup()
+	{
+		var infer = this.infer = new j5g3.Inference({ debug: true });
 
-			this.run = function(code) {
-				infer.compile('test', code);
-				return infer.getSymbols();
-			};
-		}
+		this.run = function(code) {
+			infer.compile('test', code);
+			return infer.getSymbols();
+		};
+	}
+
+	module('Node', { setup: setup });
+
+	test('Object - Unknown Value', function() {
+
+		var s = this.run('var x = new Type(); x.test = 10;');
+
+		equal(s['x.test'].value, 10);
 
 	});
+
+	module('Tags', { setup: setup });
 
 	test('@lends - double definition', function() {
 		var symbols = this.run("var a = window.a = new View.extend({ /** @lends a */ prop1: true });");

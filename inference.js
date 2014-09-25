@@ -655,8 +655,10 @@
 
 			if (obj instanceof Symbol)
 				result = obj.value;
+			if (!result || result === Unknown)
+				result = this.missingObject(obj);
 
-			return result || this.missingObject(obj);
+			return result;
 		},
 
 		MemberExpression: function(node)
