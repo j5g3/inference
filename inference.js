@@ -1266,8 +1266,7 @@
 			var symbols = "Object.create = function(proto) { var F = function() {}; " +
 			"F.prototype = proto; return new F(); };";
 
-			if (this.node)
-				symbols += "this.exports = this;";
+			symbols += this.node ? "this.exports = this;" : 'window=this;';
 
 			var ast = esprima.parse(symbols);
 

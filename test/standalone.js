@@ -5,7 +5,6 @@
 		setup: function()
 		{
 			var infer = this.infer = new j5g3.Inference({ debug: true });
-			infer.compile('test', 'var window = this;');
 
 			this.run = function(code) {
 				infer.compile('test', code);
@@ -35,8 +34,14 @@
 		ok(symbols['a.prop1']);
 	});
 
+	test('@lends - inside FunctionExpression', function() {
+		var symbols = this.run("var lends = View.extend({ /** @lends lends */ prop1: true });");
 
-	test('@lends - Inside NewExpression', function() {
+		ok(symbols.lends);
+		ok(symbols['lends.prop1']);
+	});
+
+	test('@lends - inside NewExpression', function() {
 
 		var symbols = this.run("var lends = new View.extend({ /** @lends lends */ prop1: true });");
 
@@ -59,7 +64,7 @@
 				'prop2: true' +
 			'}),' +
 			'prop3: true,' +
-			'prop4: new View({ /** @lends lends.prop4# */' +
+			'prop4: View.extend({ /** @lends lends.prop4# */' +
 				'prop0: true' +
 			'})' +
 			'});'
@@ -68,11 +73,10 @@
 		ok(symbols.lends);
 		ok(symbols['lends.prop0']);
 		ok(symbols['lends.prop1']);
-		ok(symbols['lends.prop1.prototype.prop2']);
+		equal(symbols['lends.prop1.prototype.prop2'].value, true);
 		ok(symbols['lends.prop3']);
 		ok(symbols['lends.prop4']);
-		ok(symbols['lends.prop4.prototype.prop0']);
-		console.log(symbols.lends);
+		equal(symbols['lends.prop4.prototype.prop0'].value, true);
 
 	});
 
