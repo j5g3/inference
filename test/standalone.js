@@ -11,12 +11,11 @@
 		};
 	}
 
-	module('Node', { setup: setup });
+	module('Nodes', { setup: setup });
 
 	test('Object - Unknown Value', function() {
 
 		var s = this.run('var x = new Type(); x.test = 10;');
-console.log(s);
 		ok(s.x.type.object);
 		equal(s['x.test'].value, 10);
 
@@ -25,15 +24,27 @@ console.log(s);
 	module('Tags', { setup: setup });
 
 	test('@lends - double definition', function() {
-		var symbols = this.run("var a = window.a = new View.extend({ /** @lends a */ prop1: true });");
+		var symbols = this.run("var a = window.a = new View.extend({ /** @lends a */ prop1: 10 });");
 		ok(symbols.a);
+		ok(symbols.a.type.object);
 		ok(symbols['a.prop1']);
+		equal(symbols['a.prop1'].value, 10);
+	});
+
+	test('@lends - double definition parenthesis', function() {
+		var symbols = this.run("var a = window.a = new (View.extend({ /** @lends a */ prop1: 10 }));");
+		ok(symbols.a);
+		ok(symbols.a.type.object);
+		ok(symbols['a.prop1']);
+		equal(symbols['a.prop1'].value, 10);
 	});
 
 	test('@lends - global variable', function() {
 		var symbols = this.run("var a = window.a = new (View.extend({ /** @lends window.a */ prop1: true }));");
 		ok(symbols.a);
+		ok(symbols.a.type.object);
 		ok(symbols['a.prop1']);
+		equal(symbols['a.prop1'].value, true);
 	});
 
 	test('@lends - global variable inside module', function() {
@@ -41,6 +52,7 @@ console.log(s);
 			"var a = window.a = new View.extend({ /** @lends window.a */ prop1: true });" +
 			"})(this);");
 		ok(symbols.a);
+		ok(symbols.a.type.object);
 		ok(symbols['a.prop1']);
 	});
 
@@ -67,7 +79,7 @@ console.log(s);
 	});
 
 	test('@lends - nested', function() {
-		var symbols = this.run('var lends = window.lends = new View.extend({' +
+		var symbols = this.run('var lends = window.lends = new (View.extend({' +
 			'/** @lends lends */'  +
 			'prop0: 1,' +
 			'prop1: new Model({ /** @lends lends.prop1# */' +
@@ -77,10 +89,12 @@ console.log(s);
 			'prop4: View.extend({ /** @lends lends.prop4# */' +
 				'prop0: true' +
 			'})' +
-			'});'
+			'}));'
 		);
 
 		ok(symbols.lends);
+		ok(symbols.lends.type.object);
+		ok(symbols.lends.value instanceof j5g3.Inference.ObjectType);
 		ok(symbols['lends.prop0']);
 		ok(symbols['lends.prop1']);
 		equal(symbols['lends.prop1.prototype.prop2'].value, true);

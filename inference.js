@@ -131,6 +131,10 @@
 	/** When we dont have a return value */
 	function Unknown() {}
 
+	Unknown.toString = function() {
+		return '?';
+	};
+
 	function SymbolTable(scope)
 	{
 		this.scope = scope;
@@ -862,7 +866,6 @@
 		NewExpression: function(node)
 		{
 		var
-			symbol = this.walk(node.callee),
 			fn = this.Function(node),
 			result = Unknown,
 			ctor
@@ -871,7 +874,7 @@
 			{
 				result = new ObjectType();
 				this.doCall(fn, node.arguments, result);
-				ctor = new Symbol('constructor', symbol);
+				ctor = new Symbol('constructor', fn);
 				ctor.tags.system = true;
 
 				result.add('constructor', ctor);
