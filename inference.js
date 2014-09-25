@@ -943,8 +943,12 @@
 
 		missingObject: function(obj)
 		{
-			obj.value = new ObjectType();
-			return obj.value;
+			var result = new ObjectType();
+
+			if (obj instanceof Symbol)
+				obj.set(result);
+
+			return result;
 		},
 
 		missingProperty: function(obj, node)

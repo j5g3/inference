@@ -16,7 +16,8 @@
 	test('Object - Unknown Value', function() {
 
 		var s = this.run('var x = new Type(); x.test = 10;');
-
+console.log(s);
+		ok(s.x.type.object);
 		equal(s['x.test'].value, 10);
 
 	});
