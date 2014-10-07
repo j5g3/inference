@@ -469,6 +469,17 @@
 
 	extend(ScopeManager.prototype, {
 
+		with: function(scope, cb, cbscope)
+		{
+			var c = this.current, s = this.stack, result;
+
+			this.stack = [ this.current = scope ];
+			result = cb.call(cbscope);
+			this.stack = s;
+			this.current = c;
+			return result;
+		},
+
 		addGlobal: function(symbol)
 		{
 			this.root.add(symbol.name, symbol);
@@ -1314,7 +1325,7 @@
 			return this.walker.walk(ast);
 		},
 
-		findSymbol: function(id)
+		findSymbol: function(id, scope)
 		{
 			if (!id)
 				return id;
@@ -1323,8 +1334,13 @@
 				.replace(/#/g, '.prototype.')
 			;
 
-			var ast = esprima.parse(id, {range: false});
-			return this.walker.walk(ast);
+			return this.walker.scope.with(scope || this.walker.scope.root,
+				function() {
+					return this.walker.walk(
+						esprima.parse(id, {range: false})
+					);
+				}, this
+			);
 		},
 
 		getSymbols: function()
