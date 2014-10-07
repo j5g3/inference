@@ -110,6 +110,8 @@
 
 			if (this.tags.private || this.tags.protected)
 				delete this.tags.public;
+
+			delete this.tags.system;
 		},
 
 		toString: function()
@@ -131,9 +133,7 @@
 	/** When we dont have a return value */
 	function Unknown() {}
 
-	Unknown.toString = function() {
-		return '?';
-	};
+	Unknown.toString = function() { return '?'; };
 
 	function SymbolTable(scope)
 	{
@@ -154,6 +154,10 @@
 			for (i in type.properties)
 			{
 				prop = type.properties[i];
+
+				if (prop.tags.system)
+					continue;
+
 				value = prop.value;
 
 				this.process(prop, parent);
@@ -959,7 +963,7 @@
 			var symbol = this.declareSymbol(node);
 			symbol.tags.missing = true;
 			obj.add(symbol.name, symbol);
-			return this.defineSymbol(symbol);
+			return this.defineSymbol(symbol, Unknown);
 		}
 
 	};
@@ -1025,8 +1029,11 @@
 		var
 			symbol = this.compiler.findSymbol(match.type) ||
 				this.compiler.scope.module,
-			value = symbol.value || symbol.set(new ObjectType())
+			value = symbol.value
 		;
+			if (!value || value===Unknown)
+				value = symbol.set(new ObjectType());
+
 			match.meta.lends = value;
 		},
 
@@ -1275,7 +1282,7 @@
 			var symbols = "Object.create = function(proto) { var F = function() {}; " +
 			"F.prototype = proto; return new F(); };";
 
-			symbols += this.node ? "this.exports = this;" : 'window=this;';
+			symbols += this.node ? "this.exports = this;" : 'this.window=this;';
 
 			var ast = esprima.parse(symbols);
 
