@@ -214,7 +214,7 @@
 		tagClass: function(symbol)
 		{
 			if (symbol.value && !symbol.tags.method &&
-				(symbol.type.function || symbol.tags.missing))
+				(symbol.type.function || symbol.type.object))
 			{
 				var obj = symbol.value.properties &&
 					symbol.value.properties.prototype &&
@@ -720,7 +720,8 @@
 
 				if (left instanceof Symbol)
 				{
-					delete left.tags.missing;
+					if (right !== Unknown)
+						delete left.tags.missing;
 
 					left.set(right);
 
