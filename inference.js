@@ -213,9 +213,13 @@
 
 		tagClass: function(symbol)
 		{
-			if (!symbol.tags.method && symbol.type.function)
+			if (symbol.value && !symbol.tags.method &&
+				(symbol.type.function || symbol.tags.missing))
 			{
-				var obj = symbol.value.properties.prototype.value;
+				var obj = symbol.value.properties &&
+					symbol.value.properties.prototype &&
+					symbol.value.properties.prototype.value;
+
 				if (obj && obj.modified)
 					symbol.tags.class = true;
 			}

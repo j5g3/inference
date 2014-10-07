@@ -119,10 +119,11 @@
 		ok(symbols.lends.type.object);
 		ok(symbols.lends.value instanceof j5g3.Inference.ObjectType);
 		ok(symbols['lends.prop0']);
-		ok(symbols['lends.prop1']);
+		ok(symbols['lends.prop1'].tags.class);
 		equal(symbols['lends.prop1.prototype.prop2'].value, true);
 		ok(symbols['lends.prop3']);
 		ok(symbols['lends.prop4']);
+		ok(symbols['lends.prop4'].tags.class);
 		equal(symbols['lends.prop4.prototype.prop0'].value, true);
 	});
 
