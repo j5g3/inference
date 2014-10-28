@@ -310,7 +310,6 @@
 		this.name = name;
 		this.index = 0;
 		this.scope = new Scope();
-		this.scope.this = new Symbol('this');
 
 		this.initPrototype();
 	}
@@ -450,8 +449,9 @@
 	/////////////////////////////
 
 
-	function Scope()
+	function Scope(thisSymbol)
 	{
+		this['this'] = thisSymbol || new Symbol('this');
 	}
 
 	/**
@@ -1159,12 +1159,15 @@
 		{
 		var
 			name = node.type==='Identifier' ? node.name : this.walk(node),
-			symbol = new Symbol(name)
+			symbol = new Symbol(name),
+			file = this.scope.file
 		;
 
 			if (node.loc)
-				symbol.source = this.scope.file.name + '#' +
+			{
+				symbol.source = file.name + '#' +
 					(node.loc.start.line);
+			}
 
 			if (this.system)
 				symbol.tags.system = true;
@@ -1313,6 +1316,7 @@
 
 			file.tags.file = true;
 			file.value = source;
+			file.map = {};
 
 			this.files[name] = this.scope.file = file;
 

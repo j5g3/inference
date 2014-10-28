@@ -9,7 +9,7 @@ How to Use
 Import it into your project, add and compile files.
 
 	var infer = j5g3.Inference();
-	infer.compile('source.js');
+	infer.compile('source.js', source);
 	
 	// getSymbols() returns an object with the symbol names as the keys, and the Symbol
 	// objects as values.

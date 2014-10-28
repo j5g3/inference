@@ -114,7 +114,6 @@
 			'})); })(this);'
 		);
 
-		console.log(symbols);
 		ok(symbols.lends);
 		ok(symbols.lends.type.object);
 		ok(symbols.lends.value instanceof j5g3.Inference.ObjectType);
