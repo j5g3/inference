@@ -1303,7 +1303,15 @@
 
 			symbols += this.node ? "this.exports = this;" : 'this.window=this;';
 
-			var ast = esprima.parse(symbols);
+			this.system(symbols);
+		},
+
+		/**
+		 * Add system symbols
+		 */
+		system: function(source)
+		{
+			var ast = esprima.parse(source);
 
 			this.walker.system = true;
 			this.walker.walk(ast);
@@ -1345,9 +1353,13 @@
 
 			return this.walker.scope.with(scope || this.walker.scope.root,
 				function() {
-					return this.walker.walk(
-						esprima.parse(id, {range: false})
-					);
+					try {
+						return this.walker.walk(
+							esprima.parse(id, {range: false})
+						);
+					} catch (e) {
+						return;
+					}
 				}, this
 			);
 		},
