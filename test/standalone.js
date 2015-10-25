@@ -1,4 +1,23 @@
 
+/** Support for phantomJS... */
+if (!Function.prototype.bind) {
+  Function.prototype.bind = function(oThis) {
+
+    var aArgs   = Array.prototype.slice.call(arguments, 1),
+        fToBind = this,
+        NOP    = function() {},
+        Bound  = function() {
+          return fToBind.apply(this instanceof NOP ? this : oThis,
+                 aArgs.concat(Array.prototype.slice.call(arguments)));
+        };
+
+    NOP.prototype = this.prototype;
+    Bound.prototype = new NOP();
+
+    return Bound;
+  };
+}
+
 (function(window) {
 
 	function setup()
@@ -10,6 +29,110 @@
 			return infer.getSymbols();
 		};
 	}
+
+	module('Function', { setup: setup });
+
+	test('Function#call', function(a) {
+
+		var s = this.run('!function() { this.a = "yes"; }.call(this)');
+		a.ok(s.a);
+
+	});
+
+	module('Inference.Tags');
+
+	test('Tags#set', function() {
+
+		var tags = new j5g3.Inference.Tags();
+
+		equal(tags.constructor, false);
+		tags.set('constructor', true);
+		equal(tags.constructor, true);
+		tags.set('constructor', false);
+		equal(tags.constructor, false);
+		tags.set('test', 0);
+		tags.set('test', 1);
+		tags.set('test', 2);
+		equal(tags.test, 2);
+		tags.set('test', 'hello');
+		tags.set('test', 'world');
+		tags.set('test', 'ftw');
+		deepEqual(tags.test, ['hello','world','ftw']);
+		tags.set('public', true);
+		tags.set('private', true);
+		strictEqual(tags.public, undefined);
+		tags.set('public', true);
+		tags.set('protected', true);
+		strictEqual(tags.public, undefined);
+	});
+	
+	module('Inference', { setup: setup });
+	
+	test('Inference.findScope', function(a) {
+		
+		this.infer.compile('A.js', "function x(a) {\n var b=10;\n } x();");
+		this.infer.compile('B.js', 'function y(b) { var c=10; }');
+		var files = this.infer.files;
+		var s1 = this.infer.findScope('A.js', 2, 1);
+		var s2 = this.infer.findScope('B.js', 1, 15);
+		
+		a.equal(files['A.js'].scopes.length, 1);
+		a.equal(files['B.js'].scopes.length, 1);
+		a.equal(s1, files['A.js'].scopes[0]);
+		a.equal(s2, files['B.js'].scopes[0]);
+		
+		s1 = this.infer.findScope('A.js', 1, 1);
+		
+		a.equal(s1, this.infer.scope.root.scope);
+	});
+	
+	test('Inference.findSymbol', function(a) {
+		
+		this.infer.compile('A.js', "function x(c) {\n var b=10;\n } x();");
+		
+		var x = this.infer.findSymbol('x');
+		var scope = x.value.scope;
+		var c = this.infer.findSymbol('c', scope);
+		var b = this.infer.findSymbol('b', scope);
+		
+		a.ok(x);
+		a.equal(x.name, 'x');
+		a.equal(c.name, 'c');
+		a.equal(b.value, 10);
+		a.ok(!c.tags.missing);
+		a.ok(!b.tags.missing);
+		
+		c = this.infer.findSymbol('c');
+		a.ok(c.tags.missing);
+	});
+
+	module('Inference.Symbol');
+
+	test('Symbol#copy', function() {
+		var s1 = new j5g3.Inference.Symbol();
+		var s2 = new j5g3.Inference.Symbol();
+
+		s1.tags.set('public', true);
+
+		s2.set('Hello');
+		s2.tags.private = true;
+
+		s1.copy(s2);
+
+		equal(s1.value, 'Hello');
+		equal(s1.tags.private, true);
+		ok(!s1.tags.public);
+	});
+
+	test('Symbol#toString', function() {
+
+		var s1 = new j5g3.Inference.Symbol();
+
+		equal(s1.toString(), 'undefined');
+		s1.set('Test');
+		equal(s1.toString(), 'Test');
+
+	});
 
 	module('Nodes', { setup: setup });
 
@@ -44,6 +167,92 @@
 	});
 
 	module('Tags', { setup: setup });
+
+	function testTag(name, alias, value)
+	{
+	var
+		comment = '/** @' + name + ' ' + (value||'') + ' */',
+		template = 'var g1 = { {{comment}} p: null };' +
+			'{{comment}} var g2; {{comment}} g1.p2 = true;' +
+			'g1.p3 = {{comment}} { sp1: false };' +
+			'{{comment}} function fn() { };'
+			,
+		s = this.run(template.replace(/\{\{comment\}\}/g, comment))
+	;
+		value = value || true;
+		alias = alias || name;
+
+		ok(s.g1);
+		ok(s['g1.p']);
+		equal(s['g1.p'].tags[alias], value);
+		equal(s['g1.p2'].tags[alias], value);
+		ok(s.g2);
+		equal(s.g2.tags[alias], value);
+		equal(s['g1.p3.sp1'].tags[alias], value);
+		equal(s.fn.tags[alias], value);
+	}
+
+	test('@abstract', function() {
+		testTag.call(this, 'abstract');
+		testTag.call(this, 'virtual', 'abstract');
+	});
+
+	test('@alias', function() {
+		var s = this.run(
+			'var fn1=function() { }; /** @alias fn1 */function fn2() {};' +
+			'function fn3() {}; /** @alias fn3 */function fn4(){};'
+		);
+
+		equal(s.fn2.tags.alias, 'fn1');
+		equal(s.fn4.tags.alias, 'fn3');
+		testTag.call(this, 'alias', null, 'hello');
+	});
+
+	test('@author', function() {
+		testTag.call(this, 'author', null, 'The Author');
+	});
+
+	test('@callback', function() {
+		var s = this.run('/** @callback Fn1 @param {number} num */');
+
+		ok(s.Fn1);
+		equal(s.Fn1.value.toString(), 'function (num:number)');
+	});
+
+	test('@class', function() {
+		var s = this.run('/** Description @class */ function fn() {}');
+		ok(s.fn);
+		ok(s.fn.tags.class);
+	});
+
+	test('@const', function() {
+		var s = this.run('/** @constant */ var a = 1;');
+		ok(s.a.tags.constant);
+		testTag.call(this, 'const', 'constant');
+	});
+
+	test('@constructs', function() {
+		var s = this.run('/** @constructs TextBlock */function a() { }');
+
+		ok(s.TextBlock);
+		ok(s.TextBlock.tags.class);
+	});
+
+	test('@copyright', function() {
+		var s = this.run('/** @copyright (c) 2011 Author Name */var s;');
+		ok(s.s);
+		equal(s.s.tags.copyright, '(c) 2011 Author Name');
+	});
+
+	test('@deprecated', function() {
+		testTag.call(this, 'deprecated');
+	});
+
+	test('@description', function() {
+		var s = this.run('/** Some description. */ /** @desc More Desc. */' +
+			'/** @description Even More Desc. */ var s;');
+		equal(s.s.tags.desc.join(''), 'Some description.More Desc.Even More Desc.');
+	});
 
 	test('@lends - double definition', function() {
 		var symbols = this.run("var a = window.a = new View.extend({ /** @lends a */ prop1: 10 });");
@@ -124,6 +333,14 @@
 		ok(symbols['lends.prop4']);
 		ok(symbols['lends.prop4'].tags.class);
 		equal(symbols['lends.prop4.prototype.prop0'].value, true);
+	});
+
+	test('@memberof', function(a) {
+		var s = this.run('/** @name delete @memberOf _.memoize.Cache' +
+			' @param {string} key The key of the value to remove. */' +
+			' function mapDelete() {}');
+
+		a.ok(s['_.memoize.Cache']);
 	});
 
 })(this);

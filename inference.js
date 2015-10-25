@@ -45,24 +45,38 @@
 
 		constructor: false,
 
-		toArray: function()
-		{
-			return Object.keys(this);
-		},
-
 		set: function(name, value)
 		{
 			var v = this[name];
 
 			if (v instanceof Array)
 				v.push(value);
-			else if (v && v !== true)
+			else if (typeof(v)==='string' && typeof(value)==='string')
 				this[name] = [ v, value ];
 			else
 				this[name] = value;
 
 			if (this.private || this.protected)
 				delete this.public;
+		},
+
+		toArray: function()
+		{
+			var result = [];
+
+			function Many(val)
+			{
+				return result.push(this + ': ' + val);
+			}
+
+			for (var i in this)
+				if (this.hasOwnProperty(i))
+					if (Array.isArray(this[i]))
+						this[i].forEach(Many.bind(this[i]));
+					else if (this[i])
+						result.push(i);
+
+			return result;
 		}
 
 	};
@@ -70,7 +84,7 @@
 	/**
 	 * A symbol, or property name.
 	 */
-	function Symbol(name, type)
+	function Symbol(name, value)
 	{
 		var symbol = this;
 
@@ -79,8 +93,8 @@
 		symbol.type = new Type();
 		symbol.tags.public = true;
 
-		if (type !== undefined)
-			symbol.set(type);
+		if (value !== undefined)
+			symbol.set(value);
 	}
 
 	Symbol.prototype = {
@@ -116,16 +130,7 @@
 
 		toString: function()
 		{
-			return this.value && this.value.toString();
-		},
-
-		toJSON: function()
-		{
-			var result = extend({}, this);
-
-			result.value = result.value && result.value.toString();
-			result.type = result.type && result.type.toString();
-			return result;
+			return this.value ? this.value.toString() : this.value+'';
 		}
 
 	};
@@ -303,13 +308,19 @@
 
 	};
 
-	function FunctionType(name)
+	function NativeMethod(instance, fn)
+	{
+		this.instance = instance;
+		this.run = fn;
+	}
+
+	function FunctionType(name, scope)
 	{
 		ObjectType.call(this);
 
 		this.name = name;
 		this.index = 0;
-		this.scope = new Scope();
+		this.scope = scope;
 
 		this.initPrototype();
 	}
@@ -318,13 +329,26 @@
 
 	extend(FunctionType.prototype, {
 
+		__call: function(walker, args)
+		{
+			var scope = walker.walk(args[0]);
+			args.shift();
+
+			return walker.doCallFunctionType(this.instance, args, scope);
+		},
+
 		/** @private */
 		initPrototype: function()
 		{
-			var proto = new Symbol('prototype');
+		var
+			proto = new Symbol('prototype')
+		;
 			proto.set(new ObjectType());
 			proto.tags.missing = true;
 			proto.tags.proto = true;
+
+			this.add('call', new Symbol('call',
+				new NativeMethod(this, this.__call)));
 			this.add('prototype', proto);
 		},
 
@@ -449,26 +473,57 @@
 	/////////////////////////////
 
 
-	function Scope(thisSymbol)
+	function Scope(thisSymbol, parent)
 	{
-		this['this'] = thisSymbol || new Symbol('this');
+		this.parent = parent;
+		this.this = thisSymbol || new Symbol('this');
+		this.symbols = {
+			'this': this.this
+		};
 	}
+	
+	extend(Scope.prototype, {
+		
+		add: function(name, symbol)
+		{
+			return (this.symbols[name] = symbol);	
+		},
+	
+		get: function(name)
+		{
+			return this.symbols[name];
+		},
+		
+		setLocation: function(loc)
+		{
+			this.startLine = loc.start.line;
+			this.startCh = loc.start.column;
+			this.endLine = loc.end.line;
+			this.endCh = loc.end.column;
+		}
+	});
+	
+
 
 	/**
 	 * Scope Manager
 	 * @class
 	 */
-	function ScopeManager()
+	function ScopeManager(infer)
 	{
-		var root = this.root = new ObjectType();
+		this.infer = infer;
+		
+		var root = this.root = new FunctionType(
+			'<root>', this.create());
+		root.scope.symbols = root.properties;
 
-		this.root.scope = this.root.properties;
 		this.module = new Symbol();
 		this.module.value = root;
 		this.module.tags.root = true;
 		this.module.id = root.parent = '<root>';
 
-		this.stack = [ this.current = this.root.properties ];
+		this.stack = [];
+		this.push(this.root.scope);
 	}
 
 	extend(ScopeManager.prototype, {
@@ -491,9 +546,20 @@
 		},
 
 		setCurrent: function(symbol)
-		{
+		{			
 			this.current = symbol;
 			return this;
+		},
+		
+		create: function(thisObj, loc)
+		{
+			var scope = new Scope(thisObj, this.current);
+			this.infer.file.scopes.push(scope);
+			
+			if (loc)
+				scope.setLocation(loc);
+			
+			return scope;
 		},
 
 		push: function(scope)
@@ -515,7 +581,7 @@
 			if (this.current === this.root.scope)
 				this.addGlobal(symbol);
 			else
-				this.current[symbol.name] = symbol;
+				this.current.add(symbol.name, symbol);
 
 			return this;
 		},
@@ -526,14 +592,13 @@
 		get: function(name)
 		{
 		var
-			l = this.stack.length-1,
 			scope = this.current,
 			symbol
 		;
 			do {
-				if ((symbol = scope[name]))
+				if ((symbol = scope.symbols[name]))
 					return symbol;
-			} while ((scope = this.stack[l--]));
+			} while ((scope = scope.parent));
 
 			// Try property of global object.
 			return this.root.get(name);
@@ -555,14 +620,19 @@
 	 */
 	var NodeHandler = {
 
+		EmptyStatement: function()
+		{
+
+		},
+
 		Program: function(node)
 		{
-			if (node.comments && node.comments[0] &&
+			/*if (node.comments && node.comments[0] &&
 				node.comments[0].range[0]===0)
 			{
 				this.jsdoc.parse(node.comments[0].value, this.scope.file);
 				node.comments[0].value = '';
-			}
+			}*/
 
 			var result = this.walkProperty(node.body), dummy;
 
@@ -867,11 +937,11 @@
 		{
 		var
 			name = node.id && node.id.name,
-			type = new FunctionType(name)
+			type = this.infer.createFunction(name,
+				node && node.body && node.body.loc)
 		;
 			type.parameters = node.params.map(function(param) {
-				type.scope[param.name] = this.Parameter(param);
-				return type.scope[param.name];
+				return type.scope.add(param.name, this.Parameter(param));
 			}, this);
 
 			/// TODO see if this makes sense.
@@ -917,7 +987,7 @@
 			symbol = this.walk(node.callee),
 			fn = (symbol instanceof Symbol) ? symbol.value : symbol
 		;
-			if (fn && fn!==Unknown && (fn instanceof FunctionType || fn.constructor===Function))
+			if (fn && fn!==Unknown && (fn instanceof FunctionType || fn.constructor===Function || fn instanceof NativeMethod))
 				return fn;
 		},
 
@@ -958,6 +1028,9 @@
 		/** When symbol does not exist, it creates a global symbol. */
 		missingSymbol: function(node)
 		{
+			if (this.strict)
+				throw "Could not find symbol.";
+			
 			var symbol = this.createSymbol(node);
 			symbol.tags.missing = true;
 			this.scope.addGlobal(symbol);
@@ -1000,7 +1073,7 @@
 
 			if (!(val instanceof FunctionType))
 			{
-				fn = new FunctionType();
+				fn = this.compiler.createFunction();
 
 				if (val && val.properties)
 					fn.properties = val.properties;
@@ -1011,10 +1084,32 @@
 			}
 		},
 
+		applySymbol: function(tag, type, value)
+		{
+			var symbol = this.compiler.findSymbol(type);
+
+			if (tag && symbol)
+				symbol.tags.set(tag, value || true);
+
+			return symbol;
+		},
+
+		callback: function(match)
+		{
+			match.meta = this.applySymbol(match.tag, match.type);
+			this._makeFunction(match);
+		},
+
 		constructor: function(match)
 		{
 			this._makeFunction(match);
 			match.meta.tags.constructor = true;
+		},
+
+		constructs: function(match)
+		{
+			match.meta = this.applySymbol(match.tag, match.type);
+			match.meta.tags.class = true;
 		},
 
 		class: function(match)
@@ -1030,6 +1125,12 @@
 			match.meta.tags.set('fires', match.type);
 		},
 
+		name: function(match)
+		{
+			match.meta = new Symbol(match.type);
+			match.meta.name = match.type;
+		},
+
 		param: function(match)
 		{
 			if (match.meta.value instanceof FunctionType)
@@ -1038,6 +1139,17 @@
 				p.type.parse(match.type);
 				p.tags.desc = match.text;
 			}
+		},
+
+		memberof: function(match)
+		{
+		var
+			symbol = this.compiler.findSymbol(match.type)
+		;
+			if (symbol.value===undefined || symbol.value === Unknown)
+				symbol.set(new ObjectType());
+
+			symbol.value.add(match.meta.name, match.meta);
 		},
 
 		lends: function(match)
@@ -1051,16 +1163,6 @@
 				value = symbol.set(new ObjectType());
 
 			match.meta.lends = value;
-		},
-
-		applySymbol: function(tag, type, value)
-		{
-			var symbol = this.compiler.findSymbol(type);
-
-			if (tag && symbol)
-				symbol.tags.set(tag, value || true);
-
-			return symbol;
 		},
 
 		this: function(match)
@@ -1084,7 +1186,7 @@
 				if (s.type.object)
 					s.value = new ObjectType();
 				else if (s.type.function)
-					s.value = new FunctionType();
+					s.value = this.compiler.createFunction();
 			}
 		},
 
@@ -1101,7 +1203,7 @@
 		handle: function(match)
 		{
 			switch (match.tag) {
-			case 'external': case 'callback': case 'event':
+			case 'external': case 'event':
 				match.meta = this.applySymbol(match.tag, match.type);
 				break;
 			case 'name':
@@ -1119,6 +1221,7 @@
 	 */
 	function Walker(compiler)
 	{
+		this.infer = compiler;
 		this.debug = compiler.debug;
 		this.scope = compiler.scope;
 		this.jsdoc = new JSDocParser(new JSDocHandler(compiler));
@@ -1133,6 +1236,11 @@
 		 * These will be documented, but added a tag 'system'.
 		 */
 		system: false,
+		
+		/**
+		 * Enables strict parsing mode. Throws when a symbol is not found.
+		 */
+		strict: false,
 
 		isUnknown: function(result)
 		{
@@ -1160,9 +1268,8 @@
 		var
 			name = node.type==='Identifier' ? node.name : this.walk(node),
 			symbol = new Symbol(name),
-			file = this.scope.file
+			file = this.infer.file
 		;
-
 			if (node.loc)
 			{
 				symbol.source = file.name + '#' +
@@ -1238,6 +1345,9 @@
 			if (fn instanceof FunctionType)
 				return this.doCallFunctionType(fn, args, thisValue);
 
+			if (fn instanceof NativeMethod)
+				return fn.run(this, args, thisValue);
+
 			if (fn instanceof Function)
 				return this.doCallNative(fn, args, thisValue);
 
@@ -1272,15 +1382,24 @@
 		}
 
 	});
+	
+	function File(name, source)
+	{
+		this.scopes = [];
+		Symbol.call(this, name || '<native>', source);
+		this.tags.file = true;
+	}
+	
+	File.prototype = Object.create(Symbol.prototype);
 
 	function Inference(p)
 	{
 		extend(this, p);
 
-		this.scope = new ScopeManager();
+		this.file = new File();
+		this.scope = new ScopeManager(this);
 		this.walker = this.walker || new Walker(this);
 		this.files = {};
-
 		this.initSymbols();
 	}
 
@@ -1301,7 +1420,7 @@
 			var symbols = "Object.create = function(proto) { var F = function() {}; " +
 			"F.prototype = proto; return new F(); };";
 
-			symbols += this.node ? "this.exports = this;" : 'this.window=this;';
+			symbols += this.node ? "this.exports = this;" : 'this.window=this;this.self=window;';
 
 			this.system(symbols);
 		},
@@ -1317,17 +1436,15 @@
 			this.walker.walk(ast);
 			delete this.walker.system;
 		},
+		
+		setFile: function(file)
+		{
+			this.files[file.name] = this.file = file;
+		},
 
 		compile: function(name, source)
 		{
-			var file = new Symbol(name);
-
-			file.tags.file = true;
-			file.value = source;
-			file.map = {};
-
-			this.files[name] = this.scope.file = file;
-
+			this.setFile(new File(name, source));
 			return this.interpret(source);
 		},
 
@@ -1341,6 +1458,30 @@
 
 			return this.walker.walk(ast);
 		},
+		
+		createFunction: function(name, loc)
+		{
+			return new FunctionType(name, this.scope.create(undefined, loc));
+		},
+		
+		findScope: function(filename, line, ch)
+		{
+		var
+			file = this.files[filename],
+			scopes = file.scopes, l = scopes.length,
+			scope
+		;
+			while (l--)
+			{
+				scope = scopes[l];
+				
+				if ((line===scope.startLine && ch>=scope.startCh || line > scope.startLine) &&
+				(line===scope.endLine && ch <= scope.endCh || line < scope.endLine))
+					return scope;
+			}
+			
+			return this.scope.root.scope;
+		},
 
 		findSymbol: function(id, scope)
 		{
@@ -1351,7 +1492,7 @@
 				.replace(/#/g, '.prototype.')
 			;
 
-			return this.walker.scope.with(scope || this.walker.scope.root,
+			return this.walker.scope.with(scope || this.scope.root.scope,
 				function() {
 					try {
 						return this.walker.walk(
@@ -1376,7 +1517,8 @@
 		Symbol: Symbol,
 		ObjectType: ObjectType,
 		FunctionType: FunctionType,
-		ScopeManager: ScopeManager
+		ScopeManager: ScopeManager,
+		Tags: Tags
 	});
 
 	/** @namespace */

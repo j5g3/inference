@@ -43,9 +43,45 @@ module.exports = function(grunt) {
 		watch: {
 			inference: {
 				files: '<%= jshint.inference.src %>',
-				tasks: [ 'default' ]
+				tasks: [ 'default', 'karma' ]
+			},
+
+			tests: {
+				files: 'test/standalone.js',
+				tasks: [ 'karma' ]
 			}
-		}
+		},
+
+		karma: {
+
+			options: {
+
+				frameworks: [ 'qunit' ],
+				browsers: [ 'PhantomJS' ],
+				reporters: [ 'progress', 'coverage' ],
+				singleRun: true,
+				coverageReporter: {
+					subdir: 'report'
+				}
+			},
+
+			client: {
+				plugins: [
+					'karma-qunit', 'karma-coverage', 'karma-phantomjs-launcher'
+				],
+				files: [
+					{ src: [
+						'node_modules/j5g3.jsdoc-parser/jsdoc-parser.js',
+						'node_modules/esprima/esprima.js',
+						'inference.js'
+					]},
+					{ src: 'test/standalone.js' }
+				],
+				preprocessors: {
+					'inference.js': [ 'coverage' ]
+				}
+			}
+		},
 
 	});
 
@@ -54,6 +90,7 @@ module.exports = function(grunt) {
 	grunt.loadNpmTasks('grunt-contrib-watch');
 	grunt.loadNpmTasks('grunt-contrib-uglify');
 	grunt.loadNpmTasks('grunt-contrib-jshint');
+	grunt.loadNpmTasks('grunt-karma');
 
 	grunt.registerTask('default', [ 'clean', 'jshint', 'concat' ]);
 	grunt.registerTask('minify', [ 'default', 'uglify' ]);
