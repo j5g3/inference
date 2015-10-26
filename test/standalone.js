@@ -88,7 +88,7 @@ if (!Function.prototype.bind) {
 	
 	test('Inference.findSymbol', function(a) {
 		
-		this.infer.compile('A.js', "function x(c) {\n var b=10;\n } x();");
+		this.infer.compile('A.js', "function x(c) {\n var d={}, b=10;\n d.test = 9; } x();");
 		
 		var x = this.infer.findSymbol('x');
 		var scope = x.value.scope;
@@ -101,6 +101,7 @@ if (!Function.prototype.bind) {
 		a.equal(b.value, 10);
 		a.ok(!c.tags.missing);
 		a.ok(!b.tags.missing);
+		console.log(this.infer.files);
 		
 		c = this.infer.findSymbol('c');
 		a.ok(c.tags.missing);

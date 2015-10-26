@@ -268,6 +268,7 @@
 			var p = this.properties[property];
 
 			this.modified = true;
+			symbol.parent = this;
 
 			return (p && symbol.value === Unknown) ? p
 				: this.properties[property] = symbol;
@@ -770,6 +771,15 @@
 
 			result = value.get(prop.name) ||
 				this.missingProperty(value, prop);
+			
+			if (prop.loc)
+				this.infer.file.map.push({
+					startLine: prop.loc.start.line,
+					startCh: prop.loc.start.column,
+					endLine: prop.loc.end.line,
+					endCh: prop.loc.end.column,
+					symbol: result
+				});
 
 			if (result.value instanceof FunctionType)
 				result.value.obj = value;
@@ -1386,6 +1396,8 @@
 	function File(name, source)
 	{
 		this.scopes = [];
+		// Stores member symbols. Used by findSymbol()
+		this.map = [];
 		Symbol.call(this, name || '<native>', source);
 		this.tags.file = true;
 	}
@@ -1464,12 +1476,10 @@
 			return new FunctionType(name, this.scope.create(undefined, loc));
 		},
 		
-		findScope: function(filename, line, ch)
+		findInMap: function(scopes, line, ch)
 		{
 		var
-			file = this.files[filename],
-			scopes = file.scopes, l = scopes.length,
-			scope
+			l = scopes.length, scope
 		;
 			while (l--)
 			{
@@ -1479,8 +1489,39 @@
 				(line===scope.endLine && ch <= scope.endCh || line < scope.endLine))
 					return scope;
 			}
+		},
+		
+		findMember: function(filename, line, ch)
+		{
+		var
+			file = this.files[filename]
+		;
+			return this.findInMap(file.map, line, ch);
+		},
+		
+		findScope: function(filename, line, ch)
+		{
+		var
+			file = this.files[filename]
+		;
+			return this.findInMap(file.scopes, line, ch) || this.scope.root.scope;
+		},
+		
+		findSymbolAt: function(filename, line, ch, token)
+		{
+		var
+			symbol = this.findMember(filename, line, ch),
+			scope
+		;
+			console.log(symbol);
+			if (!symbol)
+			{
+				scope = this.findScope(filename, line, ch);
+				symbol = this.findSymbol(token, scope);
+			} else
+				symbol = symbol.symbol;
 			
-			return this.scope.root.scope;
+			return symbol;
 		},
 
 		findSymbol: function(id, scope)
