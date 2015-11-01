@@ -70,7 +70,7 @@ if (!Function.prototype.bind) {
 	
 	test('Inference.findScope', function(a) {
 		
-		this.infer.compile('A.js', "function x(a) {\n var b=10;\n } x();");
+		this.infer.compile('A.js', "function x(a) {\n var b=10;\n }\n x();");
 		this.infer.compile('B.js', 'function y(b) { var c=10; }');
 		var files = this.infer.files;
 		var s1 = this.infer.findScope('A.js', 2, 1);
@@ -81,7 +81,7 @@ if (!Function.prototype.bind) {
 		a.equal(s1, files['A.js'].scopes[0]);
 		a.equal(s2, files['B.js'].scopes[0]);
 		
-		s1 = this.infer.findScope('A.js', 1, 1);
+		s1 = this.infer.findScope('A.js', 4, 1);
 		
 		a.equal(s1, this.infer.scope.root.scope);
 	});
@@ -101,7 +101,6 @@ if (!Function.prototype.bind) {
 		a.equal(b.value, 10);
 		a.ok(!c.tags.missing);
 		a.ok(!b.tags.missing);
-		console.log(this.infer.files);
 		
 		c = this.infer.findSymbol('c');
 		a.ok(c.tags.missing);

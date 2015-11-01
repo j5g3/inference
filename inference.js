@@ -947,8 +947,7 @@
 		{
 		var
 			name = node.id && node.id.name,
-			type = this.infer.createFunction(name,
-				node && node.body && node.body.loc)
+			type = this.infer.createFunction(name, node.loc)
 		;
 			type.parameters = node.params.map(function(param) {
 				return type.scope.add(param.name, this.Parameter(param));
@@ -1282,6 +1281,7 @@
 		;
 			if (node.loc)
 			{
+				symbol.loc = node.loc;
 				symbol.source = file.name + '#' +
 					(node.loc.start.line);
 			}
@@ -1507,23 +1507,66 @@
 			return this.findInMap(file.scopes, line, ch) || this.scope.root.scope;
 		},
 		
-		findSymbolAt: function(filename, line, ch, token)
+		_findSymbolAt: function(filename, line, ch, token)
 		{
 		var
 			symbol = this.findMember(filename, line, ch),
 			scope
 		;
-			console.log(symbol);
 			if (!symbol)
 			{
 				scope = this.findScope(filename, line, ch);
 				symbol = this.findSymbol(token, scope);
-			} else
-				symbol = symbol.symbol;
+			}
 			
 			return symbol;
 		},
-
+		
+		findAll: function(filename, line, ch, token, id)
+		{
+		var
+			result = {},
+			symbol = this.findMember(filename, line, ch),
+			parent
+		;
+			if (symbol)
+			{
+				result.symbol = symbol.symbol;
+				id = result.symbol.name.substr(0, ch-symbol.startCh);
+				parent = symbol.symbol.parent;
+				
+				if (parent)
+					result.suggestions = this.findSuggestions(parent.properties, id, result.symbol);
+			} else
+			{
+				parent = this.findScope(filename, line, ch);
+				result.symbol = this.findSymbol(token, parent);
+				
+				do {
+					result.suggestions = this.findSuggestions(parent.symbols, id, result.symbol);
+				} while ((parent = parent.parent));
+			}
+			
+			return result;
+		},
+		
+		findSymbolAt: function(filename, line, ch, token)
+		{
+			var symbol = this._findSymbolAt(filename, line, ch, token);
+			return symbol.symbol;
+		},
+		
+		findSuggestions: function(obj, id, ignore)
+		{
+			var result = [];
+			
+			for (var i in obj)
+				if (!id || i.indexOf(id)===0 && ignore!==obj[i])
+					result.push(obj[i]);
+			
+			return result;
+		},
+		
 		findSymbol: function(id, scope)
 		{
 			if (!id)
