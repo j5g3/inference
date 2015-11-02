@@ -655,7 +655,10 @@
 
 		Parameter: function(node)
 		{
-			return new Symbol(node.name);
+			var param = new Symbol(node.name);
+			param.tags.parameter = true;
+			
+			return param;
 		},
 
 		ThisExpression: function()
@@ -1496,7 +1499,7 @@
 		var
 			file = this.files[filename]
 		;
-			return this.findInMap(file.map, line, ch);
+			return file && this.findInMap(file.map, line, ch);
 		},
 		
 		findScope: function(filename, line, ch)
@@ -1540,7 +1543,10 @@
 			} else
 			{
 				parent = this.findScope(filename, line, ch);
-				result.symbol = this.findSymbol(token, parent);
+				symbol = this.findSymbol(token, parent);
+				
+				if (symbol && symbol.name)
+					result.symbol = symbol;
 				
 				do {
 					result.suggestions = this.findSuggestions(parent.symbols, id, result.symbol);
