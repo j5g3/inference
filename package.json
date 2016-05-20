@@ -5,14 +5,14 @@
 	"license": "GPLv3",
 
 	"dependencies": {
-		"esprima": "*",
-		"j5g3.jsdoc-parser": "j5g3/jsdoc-parser"
 	},
 	
 	"files": [ "inference.js" ],
 	"main": "inference.js",
 	
 	"devDependencies": {
+		"esprima": "*",
+		
 		"grunt": "*",
 		"grunt-contrib-jshint": "*",
 		"grunt-contrib-clean": "*",
@@ -22,6 +22,9 @@
 		"grunt-karma": "*",
 		"karma-qunit": "*",
 		"karma-coverage": "*",
-		"karma-phantomjs-launcher": "*"
+		"karma-phantomjs-launcher": "*",
+		"karma": "*",
+		"phantomjs-prebuilt": "*",
+		"qunitjs": "*"
 	}	
 }

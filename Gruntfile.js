@@ -24,7 +24,8 @@ module.exports = function(grunt) {
 
 			inference: {
 				src: [
-					'node_modules/j5g3.jsdoc-parser/jsdoc-parser.js',
+					'node_modules/esprima/esprima.js',
+					'inference-jsdoc.js',
 					'inference.js'
 				],
 				dest: 'build/inference.js'
@@ -61,7 +62,8 @@ module.exports = function(grunt) {
 				reporters: [ 'progress', 'coverage' ],
 				singleRun: true,
 				coverageReporter: {
-					subdir: 'report'
+					subdir: 'report',
+					type: 'lcov'
 				}
 			},
 
@@ -71,13 +73,15 @@ module.exports = function(grunt) {
 				],
 				files: [
 					{ src: [
-						'node_modules/j5g3.jsdoc-parser/jsdoc-parser.js',
+						'inference-jsdoc.js',
 						'node_modules/esprima/esprima.js',
 						'inference.js'
 					]},
+					{ src: 'test/index.html' },
 					{ src: 'test/standalone.js' }
 				],
 				preprocessors: {
+					'inference-jsdoc.js': [ 'coverage' ],
 					'inference.js': [ 'coverage' ]
 				}
 			}

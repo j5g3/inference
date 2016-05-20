@@ -1,5 +1,11 @@
 
 /** Support for phantomJS... */
+
+/* global module */
+/* global test */
+/* global j5g3 */
+/* global ok, equal, deepEqual, strictEqual */
+
 if (!Function.prototype.bind) {
   Function.prototype.bind = function(oThis) {
 
@@ -19,6 +25,8 @@ if (!Function.prototype.bind) {
 }
 
 (function(window) {
+	
+	var doc = window.document;
 
 	function setup()
 	{
@@ -175,8 +183,7 @@ if (!Function.prototype.bind) {
 		template = 'var g1 = { {{comment}} p: null };' +
 			'{{comment}} var g2; {{comment}} g1.p2 = true;' +
 			'g1.p3 = {{comment}} { sp1: false };' +
-			'{{comment}} function fn() { };'
-			,
+			'{{comment}} function fn() { };',
 		s = this.run(template.replace(/\{\{comment\}\}/g, comment))
 	;
 		value = value || true;
@@ -341,6 +348,28 @@ if (!Function.prototype.bind) {
 			' function mapDelete() {}');
 
 		a.ok(s['_.memoize.Cache']);
+	});
+	
+	module('native', { setup: setup });
+	
+	test('NativeSymbol - function', function() {
+	var
+		s = this.run("var a = Object, b = Object.create;")
+	;
+		equal(typeof(s.a.value.native), 'function');
+		ok(s.b.value);
+	});
+	
+	module('misc', { setup: setup });
+	
+	test('lodash copyObject()', function() {
+	var
+		src = doc.getElementById('copyObject').innerHTML +
+			"\n var a = {}, b={ b1: 1, b2: '2' };" +
+			"copyObject(a, Object.keys(b), b);",
+		s = this.run(src)
+	;
+		ok(s.a);
 	});
 
 })(this);

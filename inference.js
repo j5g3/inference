@@ -13,7 +13,7 @@
 		/* global require */
 		ns = exports;
 		esprima = require('esprima');
-		jsdoc = require('j5g3.jsdoc-parser').JSDocParser;
+		jsdoc = require('./inference-jsdoc').JSDocParser;
 	} else {
 		ns = /** @type {object} */ root.j5g3;
 		esprima = root.esprima;
@@ -134,6 +134,14 @@
 		}
 
 	};
+	
+	function NativeSymbol(name, value)
+	{
+		Symbol.call(this, name, new NativeObject(value));
+		this.tags.system = true;
+	}
+	
+	NativeSymbol.prototype = Object.create(Symbol.prototype);
 
 	/** When we dont have a return value */
 	function Unknown() {}
@@ -308,7 +316,26 @@
 		}
 
 	};
-
+	
+	function NativeObject(obj)
+	{
+		ObjectType.call(this);
+		this.native = obj;
+	}
+	
+	NativeObject.prototype = Object.create(ObjectType.prototype);
+	
+	extend(NativeObject.prototype, {
+		
+		get: function(property)
+		{
+			var result = ObjectType.prototype.get.call(this, property);
+			
+			return result;
+		}
+		
+	});
+	
 	function NativeMethod(instance, fn)
 	{
 		this.instance = instance;
@@ -342,14 +369,16 @@
 		initPrototype: function()
 		{
 		var
-			proto = new Symbol('prototype')
+			proto = new Symbol('prototype'),
+			call = new Symbol('call',
+				new NativeMethod(this, this.__call))
 		;
 			proto.set(new ObjectType());
 			proto.tags.missing = true;
 			proto.tags.proto = true;
+			call.tags.system = true;
 
-			this.add('call', new Symbol('call',
-				new NativeMethod(this, this.__call)));
+			this.add('call', call);
 			this.add('prototype', proto);
 		},
 
@@ -714,6 +743,8 @@
 			case 'void': return void(arg);
 			// TODO implement delete?
 			case 'delete': return true;
+			default:
+				console.log('Unhandled UnaryExpression operator: ' + node.operator);
 			}
 		},
 
@@ -733,10 +764,44 @@
 			case '+': return left + right;
 			case '/': return left / right;
 			case '*': return left * right;
-			case 'in': return left in right;
+			case '>': return left > right;
+			case '<': return left < right;
+			case '>=': return left >= right;
+			case '<=': return left <= right;
+			case '%': return left % right;
+			case '&': return left & right;
+			case '&&': return left && right;
+			case '|': return left | right;
+			case '||': return left || right;
+			case '>>>': return left >>> right;
+			case 'instanceof': try {
+				return left instanceof right;
+			} catch(e) { return; }
+				break;
+			case 'in': try {
+				return left in right;
+			} catch(e) { return; }
+				break;
 			default:
 				this.unsupported(node);
 			}
+		},
+		
+		WhileStatement: function(node)
+		{
+			var loops = this.infer.maxLoops;
+			
+			while (this.Value(node.test) && loops-->0)
+			{
+				this.walk(node.body);
+			}
+		},
+		
+		TryStatement: function(node)
+		{
+			// TODO
+			this.walk(node.block);
+			this.walk(node.finalizer);
 		},
 
 		String: function(node)
@@ -798,8 +863,8 @@
 			{
 				this.transferComments(node, node.left);
 
-				var left = this.walk(node.left);
 				var right = this.walk(node.right);
+				var left = this.walk(node.left);
 
 				if (left instanceof Symbol)
 				{
@@ -838,6 +903,30 @@
 			}
 
 			return result;
+		},
+		
+		ForStatement: function(node)
+		{
+			var loops = this.infer.maxLoops;
+			
+			this.walk(node.init);
+			
+			do {
+				this.walk(node.body);
+				this.walk(node.update);
+			} while(this.Value(node.test) && loops-->0);
+		},
+		
+		UpdateExpression: function(node)
+		{
+			var left = this.Value(node.argument);
+			
+			switch(node.operator) {
+			case '++': return node.prefix ? ++left : left++;
+			case '--': return node.prefix ? --left : left--;
+			default:
+				this.unsupported(node);
+			}
 		},
 
 		LogicalExpression: function(node)
@@ -921,11 +1010,13 @@
 		VariableDeclarator: function(node)
 		{
 		var
+			value = node.init ? this.walk(node.init) : undefined,
 			symbol = this.declareSymbol(this.transferComments(node, node.id))
 		;
+			this.defineSymbol(symbol, value);
 			this.scope.add(symbol);
 
-			return this.defineSymbol(symbol, node.init ? this.walk(node.init) : undefined);
+			return value;
 		},
 
 		VariableDeclaration: function(node)
@@ -1422,6 +1513,9 @@
 
 		/** Enable output of system errors and warnings to console. */
 		debug: false,
+		
+		/** Maximum number of loop counts allowed */
+		maxLoops: 1000,
 
 		/** Add node.js system symbols */
 		node: false,
@@ -1432,6 +1526,8 @@
 		 */
 		initSymbols: function()
 		{
+			this.scope.addGlobal(new NativeSymbol('Object', Object));
+			
 			var symbols = "Object.create = function(proto) { var F = function() {}; " +
 			"F.prototype = proto; return new F(); };";
 
@@ -1581,8 +1677,10 @@
 			id = id.replace(/#$/g, '.prototype')
 				.replace(/#/g, '.prototype.')
 			;
-
-			return this.walker.scope.with(scope || this.scope.root.scope,
+			
+			scope = scope || this.scope.current;
+			
+			return this.scope.with(scope,
 				function() {
 					try {
 						return this.walker.walk(
