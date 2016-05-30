@@ -432,19 +432,28 @@
 
 	});
 
-	function Type() { }
+	function Type() {}
 
 	Type.prototype = {
+		
+		// Custom types
+		other: null,
+		__cached: null,
 
-		types: [ 'null', 'object', 'boolean', 'number', 'string', 'array', 'function' ],
-
-		alias: {
+		TYPES: {
 			'Array': 'array',
 			'String': 'string',
 			'Number': 'number',
-			'Object': 'object'
+			'Object': 'object',
+			'null': 'null',
+			'object': 'object',
+			'boolean': 'boolean',
+			'number':'number',
+			'string': 'string',
+			'array': 'array',
+			'function': 'function'
 		},
-
+		
 		set: function(type)
 		{
 			var prop;
@@ -461,24 +470,24 @@
 				prop = typeof(type);
 
 			delete this.undefined;
-
+			
 			this[prop] = type;
+			this.__cached=null;
 		},
 
 		parseType: function(type)
 		{
-			var t = type.trim();
-
-			if (this.types.indexOf(t) === -1)
-				if (this.alias[t])
-					t = this.alias[t];
-				else
-				{
-					(this.other || (this.other=[])).push(t);
-					return;
-				}
-
-			this[t] = t;
+			type = type.trim();
+		var
+			t = this.TYPES[type],
+			other = this.other || (this.other=[])
+		;
+			if (t)
+				this[t] = t;
+			else
+				other.push(type);
+			
+			this.__cached=null;
 		},
 
 		parse: function(type)
@@ -489,11 +498,22 @@
 
 		toString: function()
 		{
-			var other = this.other ? this.other.join('|') : '';
-
-			return (this.types.filter(function(r) {
-				return r in this;
-			}, this).join('|') + other) || '?';
+			if (this.__cached === null)
+			{
+				var types = this.other ? this.other.concat() : [];
+				
+				if (this.array!==undefined) types.push('array');
+				if (this.boolean!==undefined) types.push('boolean');
+				if (this.function) types.push('function');
+				if (this.null!==undefined) types.push('null');
+				if (this.number!==undefined) types.push('number');
+				if (this.object!==undefined) types.push('object');
+				if (this.string!==undefined) types.push('string');
+				
+				this.__cached = types.join('|') || '?';
+			}
+			
+			return this.__cached;
 		}
 
 	};

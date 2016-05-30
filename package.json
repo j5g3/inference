@@ -1,14 +1,17 @@
 {
-	"name": "j5g3.inference",
-	"version": "0.1.1",
+	"name": "@cxl/inference",
+	"version": "0.1.2",
 	"description": "A quick and dirty javascript inference engine",
 	"license": "GPLv3",
 
 	"dependencies": {
 	},
 	
-	"files": [ "inference.js" ],
-	"main": "inference.js",
+	"files": [ "build/inference.js", "build/inference.min.js" ],
+	"main": "build/inference.js",
+	"scripts": {
+		"prepublish": "grunt minify"
+	},
 	
 	"devDependencies": {
 		"esprima": "*",
