@@ -3,7 +3,7 @@
 
 /* global module */
 /* global test */
-/* global j5g3 */
+/* global Inference */
 /* global ok, equal, deepEqual, strictEqual */
 
 if (!Function.prototype.bind) {
@@ -24,13 +24,11 @@ if (!Function.prototype.bind) {
   };
 }
 
-(function(window) {
+(function() {
 	
-	var doc = window.document;
-
 	function setup()
 	{
-		var infer = this.infer = new j5g3.Inference({ debug: true });
+		var infer = this.infer = new Inference({ debug: true });
 
 		this.run = function(code) {
 			infer.compile('test', code);
@@ -51,7 +49,7 @@ if (!Function.prototype.bind) {
 
 	test('Tags#set', function() {
 
-		var tags = new j5g3.Inference.Tags();
+		var tags = new Inference.Tags();
 
 		equal(tags.constructor, false);
 		tags.set('constructor', true);
@@ -74,26 +72,34 @@ if (!Function.prototype.bind) {
 		strictEqual(tags.public, undefined);
 	});
 	
-	module('Inference', { setup: setup });
+	module('SuggestionEngine', { setup: setup });
 	
-	test('Inference.findScope', function(a) {
+	test('SuggestionEngine.findScope', function(a) {
 		
 		this.infer.compile('A.js', "function x(a) {\n var b=10;\n }\n x();");
 		this.infer.compile('B.js', 'function y(b) { var c=10; }');
+		this.infer.compile('C.js', 'var x=function(a){ function b(d) { var c=9; }' +
+			'b(); }; x();');
+		var engine = new Inference.SuggestionEngine(this.infer);
 		var files = this.infer.files;
-		var s1 = this.infer.findScope('A.js', 2, 1);
-		var s2 = this.infer.findScope('B.js', 1, 15);
+		var s1 = engine.findScope('A.js', 2, 1);
+		var s2 = engine.findScope('B.js', 1, 15);
+		var s3 = engine.findScope('C.js', 1, 34);
 		
 		a.equal(files['A.js'].scopes.length, 1);
 		a.equal(files['B.js'].scopes.length, 1);
 		a.equal(s1, files['A.js'].scopes[0]);
 		a.equal(s2, files['B.js'].scopes[0]);
 		
-		s1 = this.infer.findScope('A.js', 4, 1);
+		a.equal(s3.symbols.c.value, 9);
+		a.ok(s3.symbols.d);
+		
+		s1 = engine.findScope('A.js', 4, 1);
 		
 		a.equal(s1, this.infer.scope.root.scope);
 	});
 	
+	module('Inference', { setup: setup });
 	test('Inference.findSymbol', function(a) {
 		
 		this.infer.compile('A.js', "function x(c) {\n var d={}, b=10;\n d.test = 9; } x();");
@@ -117,8 +123,8 @@ if (!Function.prototype.bind) {
 	module('Inference.Symbol');
 
 	test('Symbol#copy', function() {
-		var s1 = new j5g3.Inference.Symbol();
-		var s2 = new j5g3.Inference.Symbol();
+		var s1 = new Inference.Symbol();
+		var s2 = new Inference.Symbol();
 
 		s1.tags.set('public', true);
 
@@ -134,7 +140,7 @@ if (!Function.prototype.bind) {
 
 	test('Symbol#toString', function() {
 
-		var s1 = new j5g3.Inference.Symbol();
+		var s1 = new Inference.Symbol();
 
 		equal(s1.toString(), 'undefined');
 		s1.set('Test');
@@ -332,7 +338,7 @@ if (!Function.prototype.bind) {
 
 		ok(symbols.lends);
 		ok(symbols.lends.type.object);
-		ok(symbols.lends.value instanceof j5g3.Inference.ObjectType);
+		ok(symbols.lends.value instanceof Inference.ObjectType);
 		ok(symbols['lends.prop0']);
 		ok(symbols['lends.prop1'].tags.class);
 		equal(symbols['lends.prop1.prototype.prop2'].value, true);
@@ -350,26 +356,24 @@ if (!Function.prototype.bind) {
 		a.ok(s['_.memoize.Cache']);
 	});
 	
-	module('native', { setup: setup });
+	module('Object', { setup: setup });
 	
-	test('NativeSymbol - function', function() {
+	test('Object.create', function() {
 	var
 		s = this.run("var a = Object, b = Object.create;")
 	;
 		equal(typeof(s.a.value.native), 'function');
-		ok(s.b.value);
+		ok(s.b.value, Object.create);
 	});
 	
-	module('misc', { setup: setup });
-	
-	test('lodash copyObject()', function() {
+	test('Object.hasOwnProperty', function() {
 	var
-		src = doc.getElementById('copyObject').innerHTML +
-			"\n var a = {}, b={ b1: 1, b2: '2' };" +
-			"copyObject(a, Object.keys(b), b);",
-		s = this.run(src)
+		s = this.run("var a = { a1: 1 }, b=a.hasOwnProperty('a1')," +
+			"c=a.hasOwnProperty('toString');")
 	;
 		ok(s.a);
+		strictEqual(s.b.value, true);
+		strictEqual(s.c.value, false);
 	});
 
 })(this);

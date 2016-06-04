@@ -1,3 +1,16 @@
 {
-	"lcov": "coverage/report/lcov.info"
+	"plugins": ["watch", "lcov"],
+	"lcov": "coverage/report/lcov.info",
+	"watch": {
+		
+		"rules": {
+			
+			"inference": {
+				"files": "inference*.js",
+				"tasks": "grunt default karma"
+			}
+			
+		}
+		
+	}
 }

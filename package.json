@@ -2,25 +2,23 @@
 	"name": "@cxl/inference",
 	"version": "0.1.2",
 	"description": "A quick and dirty javascript inference engine",
-	"license": "GPLv3",
+	"license": "GPL-3.0",
 
 	"dependencies": {
+		"esprima": "*"
 	},
 	
-	"files": [ "build/inference.js", "build/inference.min.js" ],
-	"main": "build/inference.js",
+	"files": [ "build" ],
+	"main": "build/inference-node.js",
 	"scripts": {
 		"prepublish": "grunt minify"
 	},
 	
 	"devDependencies": {
-		"esprima": "*",
-		
 		"grunt": "*",
 		"grunt-contrib-jshint": "*",
 		"grunt-contrib-clean": "*",
 		"grunt-contrib-concat": "*",
-		"grunt-contrib-watch": "*",
 		"grunt-contrib-uglify": "*",
 		"grunt-karma": "*",
 		"karma-qunit": "*",

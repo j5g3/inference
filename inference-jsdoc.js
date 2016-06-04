@@ -269,4 +269,4 @@
 	exports.JSDocParser= JSDocParser;
 
 	/* global exports */
-})(typeof(exports)==='undefined' ? (this.j5g3 || (this.j5g3={})) : exports);
+})(typeof(exports)==='undefined' ? this : exports);

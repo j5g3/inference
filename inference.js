@@ -13,9 +13,9 @@
 		/* global require */
 		ns = exports;
 		esprima = require('esprima');
-		jsdoc = require('./inference-jsdoc').JSDocParser;
+		jsdoc = exports.JSDocParser;
 	} else {
-		ns = /** @type {object} */ root.j5g3;
+		ns = /** @type {object} */ root;
 		esprima = root.esprima;
 		jsdoc = ns.JSDocParser;
     }
@@ -26,6 +26,11 @@
 	'use strict';
 
 	var hop = Object.prototype.hasOwnProperty;
+	
+	/** When we dont have a return value */
+	function Unknown() {}
+
+	Unknown.toString = function() { return '?'; };
 
 	/**
 	 * Extends A with B
@@ -143,11 +148,6 @@
 	
 	NativeSymbol.prototype = Object.create(Symbol.prototype);
 
-	/** When we dont have a return value */
-	function Unknown() {}
-
-	Unknown.toString = function() { return '?'; };
-
 	function SymbolTable(scope)
 	{
 		this.scope = scope;
@@ -262,10 +262,6 @@
 	function ObjectType()
 	{
 		this.properties = {};
-
-		this.add('hasOwnProperty',
-			new Symbol('hasOwnProperty', hop));
-		this.properties.hasOwnProperty.tags.system = true;
 		this.modified = false;
 	}
 
@@ -327,19 +323,32 @@
 	
 	extend(NativeObject.prototype, {
 		
+		getNativeSymbol: function(property)
+		{
+			var result = new Symbol(property, this.native[property]);
+			this.add(property, result);
+			return result;
+		},
+		
 		get: function(property)
 		{
-			var result = ObjectType.prototype.get.call(this, property);
-			
+			var result = ObjectType.prototype.get.call(this, property) ||
+				this.getNativeSymbol(property);
+
 			return result;
 		}
 		
 	});
 	
-	function NativeMethod(instance, fn)
+	function NativeMethod(fn, run)
 	{
-		this.instance = instance;
-		this.run = fn;
+		NativeObject.call(this, fn);
+		
+		this.run = run || function(walker, thisValue, args)
+		{
+			var values = walker.Value(args);
+			return fn.apply(thisValue, values);
+		};
 	}
 
 	function FunctionType(name, scope)
@@ -357,28 +366,31 @@
 
 	extend(FunctionType.prototype, {
 
-		__call: function(walker, args)
+		__call: function(walker, fn, args)
 		{
-			var scope = walker.walk(args[0]);
+			var thisValue = walker.Value(args[0]);
 			args.shift();
-
-			return walker.doCallFunctionType(this.instance, args, scope);
+			return walker.doCallFunctionType(fn, args, thisValue);
+		},
+		
+		__apply: function()
+		{
+			
 		},
 
 		/** @private */
 		initPrototype: function()
 		{
 		var
-			proto = new Symbol('prototype'),
-			call = new Symbol('call',
-				new NativeMethod(this, this.__call))
+			proto = new Symbol('prototype')
 		;
 			proto.set(new ObjectType());
 			proto.tags.missing = true;
 			proto.tags.proto = true;
-			call.tags.system = true;
+			
+			this.add('call', new Symbol('call', new NativeMethod(null, this.__call.bind(this))));
+			//proto.add('apply', new Symbol('apply', this.__apply.bind(this)));
 
-			this.add('call', call);
 			this.add('prototype', proto);
 		},
 
@@ -670,10 +682,7 @@
 	 */
 	var NodeHandler = {
 
-		EmptyStatement: function()
-		{
-
-		},
+		EmptyStatement: function() { },
 
 		Program: function(node)
 		{
@@ -837,10 +846,10 @@
 
 			if (obj instanceof Symbol)
 				result = obj.value;
-			if (!result || result === Unknown)
+			if (result===null || result===undefined || result === Unknown)
 				result = this.missingObject(obj);
 
-			return result;
+			return result instanceof ObjectType ? result : new NativeObject(result);
 		},
 
 		MemberExpression: function(node)
@@ -869,7 +878,7 @@
 					symbol: result
 				});
 
-			if (result.value instanceof FunctionType)
+			if (result.value instanceof FunctionType || result.value instanceof NativeMethod)
 				result.value.obj = value;
 			else if (result.type.native)
 				result.value.obj = value.properties;
@@ -1072,6 +1081,10 @@
 				this.transferComments(node, node.id);
 
 			type.body = node.body;
+			
+			// TODO make this optional?
+			// Call function with no parameters to get its symbols.
+			// this.doCall(type);
 
 			return type;
 		},
@@ -1110,8 +1123,15 @@
 			symbol = this.walk(node.callee),
 			fn = (symbol instanceof Symbol) ? symbol.value : symbol
 		;
-			if (fn && fn!==Unknown && (fn instanceof FunctionType || fn.constructor===Function || fn instanceof NativeMethod))
+			if (fn===Unknown)
+				return;
+			
+			if (fn && fn!==Unknown && 
+				(fn instanceof FunctionType || fn instanceof NativeMethod))
 				return fn;
+			
+			if (fn instanceof Function)
+				return new NativeMethod(fn);
 		},
 
 		default: function(node)
@@ -1438,7 +1458,7 @@
 		{
 			var result;
 
-			if (fn.parameters)
+			if (args && fn.parameters)
 				fn.parameters.forEach(function(param, i) {
 					param.set(this.Value(args[i]));
 				}, this);
@@ -1466,11 +1486,16 @@
 
 		doCall: function(fn, args, thisValue)
 		{
+			if (thisValue===undefined)
+				thisValue = fn.obj;
+			
 			if (fn instanceof FunctionType)
+			{
 				return this.doCallFunctionType(fn, args, thisValue);
+			}
 
 			if (fn instanceof NativeMethod)
-				return fn.run(this, args, thisValue);
+				return fn.run(this, thisValue, args);
 
 			if (fn instanceof Function)
 				return this.doCallNative(fn, args, thisValue);
@@ -1517,7 +1542,7 @@
 	}
 	
 	File.prototype = Object.create(Symbol.prototype);
-
+	
 	function Inference(p)
 	{
 		extend(this, p);
@@ -1547,11 +1572,8 @@
 		initSymbols: function()
 		{
 			this.scope.addGlobal(new NativeSymbol('Object', Object));
-			
-			var symbols = "Object.create = function(proto) { var F = function() {}; " +
-			"F.prototype = proto; return new F(); };";
 
-			symbols += this.node ? "this.exports = this;" : 'this.window=this;this.self=window;';
+			var symbols = this.node ? "this.exports = this;" : 'this.window=this;this.self=window;';
 
 			this.system(symbols);
 		},
@@ -1595,53 +1617,7 @@
 			return new FunctionType(name, this.scope.create(undefined, loc));
 		},
 		
-		findInMap: function(scopes, line, ch)
-		{
-		var
-			l = scopes.length, scope
-		;
-			while (l--)
-			{
-				scope = scopes[l];
-				
-				if ((line===scope.startLine && ch>=scope.startCh || line > scope.startLine) &&
-				(line===scope.endLine && ch <= scope.endCh || line < scope.endLine))
-					return scope;
-			}
-		},
-		
-		findMember: function(filename, line, ch)
-		{
-		var
-			file = this.files[filename]
-		;
-			return file && this.findInMap(file.map, line, ch);
-		},
-		
-		findScope: function(filename, line, ch)
-		{
-		var
-			file = this.files[filename]
-		;
-			return this.findInMap(file.scopes, line, ch) || this.scope.root.scope;
-		},
-		
-		_findSymbolAt: function(filename, line, ch, token)
-		{
-		var
-			symbol = this.findMember(filename, line, ch),
-			scope
-		;
-			if (!symbol)
-			{
-				scope = this.findScope(filename, line, ch);
-				symbol = this.findSymbol(token, scope);
-			}
-			
-			return symbol;
-		},
-		
-		findAll: function(filename, line, ch, token, id)
+/*		findAll: function(filename, line, ch, token, id)
 		{
 		var
 			result = {},
@@ -1670,24 +1646,7 @@
 			}
 			
 			return result;
-		},
-		
-		findSymbolAt: function(filename, line, ch, token)
-		{
-			var symbol = this._findSymbolAt(filename, line, ch, token);
-			return symbol.symbol;
-		},
-		
-		findSuggestions: function(obj, id, ignore)
-		{
-			var result = [];
-			
-			for (var i in obj)
-				if (!id || i.indexOf(id)===0 && ignore!==obj[i])
-					result.push(obj[i]);
-			
-			return result;
-		},
+		},*/
 		
 		findSymbol: function(id, scope)
 		{
@@ -1720,12 +1679,70 @@
 		}
 
 	};
+	
+	function SuggestionEngine(infer)
+	{
+		this.infer = infer;
+	}
+	
+	extend(SuggestionEngine.prototype, {
+		
+		findSuggestions: function(obj, id)
+		{
+			var result = [];
+			
+			for (var i in obj)
+				if (!id || i.indexOf(id)===0)
+					result.push(obj[i]);
+			
+			return result;
+		},
+		
+		findInMap: function(scopes, line, ch)
+		{
+		var
+			l = scopes.length, scope
+		;
+			while (l--)
+			{
+				scope = scopes[l];
+				
+				if ((line===scope.startLine && ch>=scope.startCh || line > scope.startLine) &&
+				(line===scope.endLine && ch <= scope.endCh || line < scope.endLine))
+					return scope;
+			}
+		},
+		
+		findMember: function(filename, line, ch)
+		{
+		var
+			file = this.infer.files[filename]
+		;
+			return file && this.findInMap(file.map, line, ch);
+		},
+		
+		findScope: function(filename, line, ch)
+		{
+		var
+			file = this.infer.files[filename]
+		;
+			return this.findInMap(file.scopes, line, ch) || this.infer.scope.root.scope;
+		},
+		
+		symbolAt: function(filename, line, ch, token)
+		{
+			var symbol = this.findInMap(filename, line, ch, token);
+			return symbol.symbol;
+		}
+		
+	});
 
 	extend(Inference, {
 		Symbol: Symbol,
 		ObjectType: ObjectType,
 		FunctionType: FunctionType,
 		ScopeManager: ScopeManager,
+		SuggestionEngine: SuggestionEngine,
 		Tags: Tags
 	});
 
