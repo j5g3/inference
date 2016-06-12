@@ -35,6 +35,57 @@ if (!Function.prototype.bind) {
 			return infer.getSymbols();
 		};
 	}
+	
+	module('ObjectType');
+	test('ObjectType#constructor', function(a) {
+		var obj = new Inference.ObjectType();
+		a.strictEqual(obj.native, undefined);
+		a.ok(obj.properties);
+		
+		obj = new Inference.ObjectType(false);
+		a.strictEqual(obj.native, false);
+		var toString = obj.get('toString');
+		var value = toString.getValue();
+		a.ok(toString);
+		a.equal(toString.parent, obj);
+		a.ok(value instanceof Inference.ObjectType);
+		a.ok(value instanceof Inference.FunctionType);
+		
+		var undefProp = obj.get('undefined');
+		value = undefProp.getValue();
+		a.ok(undefProp);
+		a.ok(value);
+		a.strictEqual(value.native, undefined);
+		
+	});
+	
+	module('FunctionType');
+	test('FunctionType#constructor', function(a) {
+		
+		var obj = new Inference.ObjectType({ a: 1 });
+		var fn = obj.get('hasOwnProperty').getValue();
+		
+		a.ok(fn instanceof Inference.FunctionType);
+		a.equal(fn.name, 'hasOwnProperty');
+		//a.ok(fn.run(null, [ new Inference.ObjectType('a') ]));
+		
+		fn = new Inference.FunctionType(function a() {});
+		a.equal(fn.name, 'a');
+	});
+	
+	test('FunctionType#toString', function(a) {
+		
+		var fn = new Inference.FunctionType(function a() {});
+		a.ok(fn.toString());
+		
+	});
+	
+	module('Unknown', { setup: setup });
+	
+	test('Unknown.toString', function(a) {
+		var s = this.run('var a = func();');
+		a.equal(s.a.value.native.toString(), '?');
+	});
 
 	module('Function', { setup: setup });
 
@@ -72,34 +123,34 @@ if (!Function.prototype.bind) {
 		strictEqual(tags.public, undefined);
 	});
 	
-	module('SuggestionEngine', { setup: setup });
+
 	
-	test('SuggestionEngine.findScope', function(a) {
+	module('Inference', { setup: setup });
+	
+	test('Inference#findScope', function(a) {
 		
 		this.infer.compile('A.js', "function x(a) {\n var b=10;\n }\n x();");
 		this.infer.compile('B.js', 'function y(b) { var c=10; }');
 		this.infer.compile('C.js', 'var x=function(a){ function b(d) { var c=9; }' +
 			'b(); }; x();');
-		var engine = new Inference.SuggestionEngine(this.infer);
 		var files = this.infer.files;
+		var engine = this.infer;
 		var s1 = engine.findScope('A.js', 2, 1);
 		var s2 = engine.findScope('B.js', 1, 15);
 		var s3 = engine.findScope('C.js', 1, 34);
 		
-		a.equal(files['A.js'].scopes.length, 1);
-		a.equal(files['B.js'].scopes.length, 1);
-		a.equal(s1, files['A.js'].scopes[0]);
-		a.equal(s2, files['B.js'].scopes[0]);
+		a.equal(files['A.js'].functions.length, 1);
+		a.equal(files['B.js'].functions.length, 1);
+		a.equal(s1, files['A.js'].functions[0].scope);
+		a.equal(s2, files['B.js'].functions[0].scope);
 		
-		a.equal(s3.symbols.c.value, 9);
-		a.ok(s3.symbols.d);
+		a.equal(s3.get('c').getValue().native, 9);
+		a.ok(s3.properties.d);
 		
 		s1 = engine.findScope('A.js', 4, 1);
 		
 		a.equal(s1, this.infer.scope.root.scope);
 	});
-	
-	module('Inference', { setup: setup });
 	test('Inference.findSymbol', function(a) {
 		
 		this.infer.compile('A.js', "function x(c) {\n var d={}, b=10;\n d.test = 9; } x();");
@@ -112,19 +163,17 @@ if (!Function.prototype.bind) {
 		a.ok(x);
 		a.equal(x.name, 'x');
 		a.equal(c.name, 'c');
-		a.equal(b.value, 10);
+		a.equal(b.getValue().native, 10);
 		a.ok(!c.tags.missing);
 		a.ok(!b.tags.missing);
-		
-		c = this.infer.findSymbol('c');
-		a.ok(c.tags.missing);
 	});
 
 	module('Inference.Symbol');
 
 	test('Symbol#copy', function() {
-		var s1 = new Inference.Symbol();
-		var s2 = new Inference.Symbol();
+		var obj = new Inference.ObjectType({});
+		var s1 = obj.get('s1');
+		var s2 = obj.get('s2');
 
 		s1.tags.set('public', true);
 
@@ -133,28 +182,35 @@ if (!Function.prototype.bind) {
 
 		s1.copy(s2);
 
-		equal(s1.value, 'Hello');
+		equal(s1.value, s2.value);
 		equal(s1.tags.private, true);
 		ok(!s1.tags.public);
 	});
 
-	test('Symbol#toString', function() {
+	test('Symbol#toString', function(a) {
 
-		var s1 = new Inference.Symbol();
+		var obj = new Inference.ObjectType({});
+		var s1 = obj.get('undefined');
 
-		equal(s1.toString(), 'undefined');
+		a.equal(s1.toString(), 'undefined');
 		s1.set('Test');
-		equal(s1.toString(), 'Test');
+		a.equal(s1.toString(), 'Test');
+		s1.set(null);
+		a.equal(s1.toString(), 'null');
 
 	});
 
 	module('Nodes', { setup: setup });
 
-	test('Global scope and window scope', function() {
+	test('Global scope and window scope', function(a) {
 		var s = this.run('var w = window, a = 10, b = window.b = 30;');
-		equal(s.a, s.w.value.properties.a);
-		equal(s.a.value, s.w.value.properties.a.value);
-		equal(s.b, s.w.value.properties.b);
+		
+		a.equal(s.this.value, s.window.value);
+		a.equal(s.w.value, s.window.value);
+		a.equal(s.a, s.w.value.properties.a);
+		a.equal(s.a.value, s.w.value.properties.a.value);
+		a.equal(s.b, s.w.value.properties.b);
+		a.equal(s.b.value.native, 30);
 	});
 
 	test('ThisExpression - this and window', function()
@@ -169,6 +225,7 @@ if (!Function.prototype.bind) {
 		var s = this.run('var t=this, a = (function(window) { window.b = 20; return window; })(this);');
 		equal(s.a.value, s.t.value);
 		equal(s.b, s.a.value.properties.b);
+		equal(s.b.value.native, 20);
 		equal(s.a.value.properties.a, s.a);
 	});
 
@@ -176,7 +233,7 @@ if (!Function.prototype.bind) {
 
 		var s = this.run('var x = new Type(); x.test = 10;');
 		ok(s.x.type.object);
-		equal(s['x.test'].value, 10);
+		equal(s['x.test'].value.native, 10);
 
 	});
 
@@ -272,7 +329,7 @@ if (!Function.prototype.bind) {
 		ok(symbols.a);
 		ok(symbols.a.type.object);
 		ok(symbols['a.prop1']);
-		equal(symbols['a.prop1'].value, 10);
+		equal(symbols['a.prop1'].value.native, 10);
 	});
 
 	test('@lends - double definition parenthesis', function() {
@@ -280,7 +337,7 @@ if (!Function.prototype.bind) {
 		ok(symbols.a);
 		ok(symbols.a.type.object);
 		ok(symbols['a.prop1']);
-		equal(symbols['a.prop1'].value, 10);
+		equal(symbols['a.prop1'].value.native, 10);
 	});
 
 	test('@lends - global variable', function() {
@@ -288,7 +345,7 @@ if (!Function.prototype.bind) {
 		ok(symbols.a);
 		ok(symbols.a.type.object);
 		ok(symbols['a.prop1']);
-		equal(symbols['a.prop1'].value, true);
+		equal(symbols['a.prop1'].value.native, true);
 	});
 
 	test('@lends - global variable inside module', function() {
@@ -340,12 +397,13 @@ if (!Function.prototype.bind) {
 		ok(symbols.lends.type.object);
 		ok(symbols.lends.value instanceof Inference.ObjectType);
 		ok(symbols['lends.prop0']);
+		equal(symbols['lends.prop0'].getValue().native, 1);
 		ok(symbols['lends.prop1'].tags.class);
-		equal(symbols['lends.prop1.prototype.prop2'].value, true);
+		equal(symbols['lends.prop1.prototype.prop2'].value.native, true);
 		ok(symbols['lends.prop3']);
 		ok(symbols['lends.prop4']);
 		ok(symbols['lends.prop4'].tags.class);
-		equal(symbols['lends.prop4.prototype.prop0'].value, true);
+		equal(symbols['lends.prop4.prototype.prop0'].value.native, true);
 	});
 
 	test('@memberof', function(a) {
@@ -372,8 +430,8 @@ if (!Function.prototype.bind) {
 			"c=a.hasOwnProperty('toString');")
 	;
 		ok(s.a);
-		strictEqual(s.b.value, true);
-		strictEqual(s.c.value, false);
+		strictEqual(s.b.value.native, true);
+		strictEqual(s.c.value.native, false);
 	});
 
 })(this);

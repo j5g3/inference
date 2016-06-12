@@ -1,6 +1,6 @@
 {
 	"name": "@cxl/inference",
-	"version": "0.1.2",
+	"version": "1.0.0",
 	"description": "A quick and dirty javascript inference engine",
 	"license": "GPL-3.0",
 
