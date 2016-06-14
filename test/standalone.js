@@ -32,7 +32,7 @@ if (!Function.prototype.bind) {
 
 		this.run = function(code) {
 			infer.compile('test', code);
-			return infer.getSymbols();
+			return infer.getSymbols({ missing: true });
 		};
 	}
 	
@@ -153,7 +153,7 @@ if (!Function.prototype.bind) {
 	});
 	test('Inference.findSymbol', function(a) {
 		
-		this.infer.compile('A.js', "function x(c) {\n var d={}, b=10;\n d.test = 9; } x();");
+		this.infer.compile('A.js', "function x(c) {\n var d={}, b=10;\n d.test = 9; } x(10);");
 		
 		var x = this.infer.findSymbol('x');
 		var scope = x.value.scope;
@@ -204,9 +204,10 @@ if (!Function.prototype.bind) {
 
 	test('Global scope and window scope', function(a) {
 		var s = this.run('var w = window, a = 10, b = window.b = 30;');
+		var win = this.infer.scope.getGlobal('window').getValue();
 		
-		a.equal(s.this.value, s.window.value);
-		a.equal(s.w.value, s.window.value);
+		a.equal(this.infer.scope.getGlobal('this').value, win);
+		a.equal(s.w.value,win);
 		a.equal(s.a, s.w.value.properties.a);
 		a.equal(s.a.value, s.w.value.properties.a.value);
 		a.equal(s.b, s.w.value.properties.b);
@@ -433,6 +434,24 @@ if (!Function.prototype.bind) {
 		strictEqual(s.b.value.native, true);
 		strictEqual(s.c.value.native, false);
 	});
+	
+	module('Parser', { setup: setup });
+	
+	test('ForInStatement', function(a) {
+		var s = this.run('var x={}; for (var i in this) { x[i]=this[i]; }');
+		
+		a.ok(s.x);
+		a.ok(s['x.Object']);
+		a.ok(s['x.x']);
+	});
+	
+	test('MemberExpression - global', function(a) {
+		var s = this.run('var x = this.abc;');
+		
+		a.ok(!s.x.tags.missing);
+		a.ok(s.abc.tags.missing);
+	});
+	
 
 })(this);
 

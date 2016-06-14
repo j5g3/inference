@@ -95,6 +95,9 @@
 		symbol.parent = parent;
 		symbol.tags = new Tags();
 		symbol.type = new Type();
+		
+		// Set missing as default until symbol is set.
+		symbol.tags.missing = true;
 	}
 
 	Symbol.prototype = {
@@ -123,13 +126,18 @@
 					this.copy(value);
 				else
 				{
+					if (value!==undefined)
+						delete this.tags.missing;
+					
 					if (!(value instanceof ObjectType))
 						value = new ObjectType(value);
 					
 					this.type.set(value.native);
 					// TODO is this safe?
 					if (this.parent.native[this.name]!==value.native)
+					{
 						this.parent.native[this.name] = value.native;
+					}
 					
 					this.value = value;
 				}
@@ -147,8 +155,9 @@
 		/** Copies symbol value and tags. */
 		copy: function(symbol)
 		{
-			this.set(symbol.getValue());
 			extend(this.tags, symbol.tags);
+			
+			this.set(symbol.getValue());
 
 			if (this.tags.private || this.tags.protected)
 				delete this.tags.public;
@@ -158,16 +167,15 @@
 
 		toString: function()
 		{
-			var val = this.getValue().native;
-			
-			return val && val.toString ? val.toString() : val+'';
+			return this.getValue().toString();
 		}
 
 	};
 	
-	function SymbolTable(scope)
+	function SymbolTable(scope, options)
 	{
 		this.scope = scope;
+		this.options = options || {};
 		this.symbols = {};
 
 		this.build(this.scope.root, this.scope.module);
@@ -185,7 +193,8 @@
 			{
 				prop = type.properties[i];
 
-				if (prop.tags.system)
+				if (prop.tags.system ||
+					(!this.options.missing && prop.tags.missing))
 					continue;
 
 				value = prop.getValue();
@@ -218,7 +227,7 @@
 			{
 				ctor = fn.get('prototype').getValue().properties.constructor;
 				
-				if (ctor)
+				if (ctor && ctor!==Object)
 					symbol.tags.extends = ctor;
 			}
 		},
@@ -312,7 +321,7 @@
 					{ enumerable: false, value: this });
 		},
 		
-		/** @type {Array[Symbol]} */
+		/** @type {Array<Symbol>} */
 		properties: null,
 		
 		get: function(property)
@@ -321,6 +330,16 @@
 				return this.properties[property];
 			
 			return (this.properties[property] = new Symbol(this, property));
+		},
+		
+		toString: function()
+		{
+			var v = this.native;
+			
+			if (v===undefined) return 'undefined';
+			if (v===null) return 'null';
+			
+			return v.toString();
 		}
 		
 	});
@@ -520,8 +539,10 @@
 		this.infer = infer;
 		
 		var root = this.root = new ObjectType({});
+		var thisVal = root.get('this');
 		root.scope = root;
-		root.get('this').set(root);
+		thisVal.set(root);
+		thisVal.tags.system = true;
 
 		this.module = new Symbol();
 		this.module.value = root;
@@ -782,9 +803,7 @@
 
 		String: function(node)
 		{
-			var result = this.Value(node);
-
-			return this.result(result);
+			return this.walk(node).toString();
 		},
 
 		Object: function(node)
@@ -837,17 +856,17 @@
 		{
 		var
 			left,
-			right = this.Value(node.right),
+			right = this.Object(node.right),
 			property, result
 		;
-			left = this.walk(node.left.declarations ?
+			left = this.Symbol(node.left.declarations ?
 				node.left.declarations[0] :
 				node.left
 			);
 
-			for (property in right)
+			for (property in right.native)
 			{
-				left.set(this.String(property));
+				left.set(property);
 				result = this.walk(node.body);
 			}
 
@@ -961,12 +980,13 @@
 		VariableDeclarator: function(node)
 		{
 		var
-			value = node.init ? this.walk(node.init) : undefined
+			value = node.init ? this.walk(node.init) : undefined,
+			symbol
 		;
 			this.transferComments(node, node.id);
-			this.initSymbol(node.id, this.scope.current, value);
+			symbol = this.initSymbol(node.id, this.scope.current, value);
 
-			return value;
+			return symbol;
 		},
 
 		VariableDeclaration: function(node)
@@ -1128,7 +1148,10 @@
 			var result = new ObjectType({});
 
 			if (obj instanceof Symbol)
+			{
 				obj.set(result);
+				obj.tags.missing = true;
+			}
 
 			return result;
 		},
@@ -1201,7 +1224,13 @@
 
 		constructs: function(match)
 		{
+			var fn = match.meta && match.meta.getValue();
+			
 			match.meta = this.applySymbol(match.tag, match.type);
+			
+			if (fn instanceof FunctionType)
+				match.meta.set(fn);
+			
 			match.meta.tags.class = true;
 		},
 
@@ -1477,22 +1506,43 @@
 		 */
 		initSymbols: function()
 		{
-			var symbols = this.node ? "this.exports = this;" : 'this.window=this;this.self=window;';
-			this.scope.getGlobal('Object').set(
-				extend(function() {}, Object));
-			this.system(symbols);
+			if (this.node)
+			{
+				this.system('exports', {});
+			} else
+			{
+				this.system('window', this.scope.get('this'));
+				this.system('self', this.scope.get('this'));
+			}
+
+			this.systemObject('Object', Object);
+			this.systemObject('Date', Date);
+			this.systemObject('Array', Array);
+			this.systemObject('String', String);
 		},
 
 		/**
 		 * Add system symbols
 		 */
-		system: function(source)
+		system: function(name, value)
 		{
-			var ast = esprima.parse(source);
-
-			this.walker.system = true;
-			this.walker.walk(ast);
-			delete this.walker.system;
+			var s = this.scope.getGlobal(name);
+			s.set(value);
+			s.tags.system = true;
+			return s;
+		},
+		
+		systemObject: function(name, Native)
+		{
+		var
+			s = this.scope.getGlobal(name)
+		;
+			s.set(extend(
+				function(a,b,c,d,e,f,g,h) { new Native(a,b,c,d,e,f,g,h); },
+				Native
+			));
+			s.tags.system = true;
+			return s;
 		},
 		
 		setFile: function(file)
@@ -1572,9 +1622,9 @@
 			);
 		},
 
-		getSymbols: function()
+		getSymbols: function(options)
 		{
-			this.table = new SymbolTable(this.scope);
+			this.table = new SymbolTable(this.scope, options);
 			return this.table.symbols;
 		},
 		
