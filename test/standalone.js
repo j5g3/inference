@@ -323,6 +323,11 @@ if (!Function.prototype.bind) {
 		var s = this.run('/** Some description. */ /** @desc More Desc. */' +
 			'/** @description Even More Desc. */ var s;');
 		equal(s.s.tags.desc.join(''), 'Some description.More Desc.Even More Desc.');
+		
+		s = this.run("/** Comment\n\n@private\n */\nfunction a() {} var b = a;");
+		
+		equal(s.a.tags.desc, 'Comment');
+		equal(s.b.tags.desc, s.a.tags.desc);
 	});
 
 	test('@lends - double definition', function() {
@@ -397,13 +402,16 @@ if (!Function.prototype.bind) {
 		ok(symbols.lends);
 		ok(symbols.lends.type.object);
 		ok(symbols.lends.value instanceof Inference.ObjectType);
+		ok(!symbols.lends.tags.missing);
+		ok(symbols['View.extend']);
+		ok(symbols.Model);
+		ok(symbols.Model.tags.missing);
 		ok(symbols['lends.prop0']);
 		equal(symbols['lends.prop0'].getValue().native, 1);
-		ok(symbols['lends.prop1'].tags.class);
+		ok(!symbols['lends.prop1'].tags.missing);
 		equal(symbols['lends.prop1.prototype.prop2'].value.native, true);
 		ok(symbols['lends.prop3']);
 		ok(symbols['lends.prop4']);
-		ok(symbols['lends.prop4'].tags.class);
 		equal(symbols['lends.prop4.prototype.prop0'].value.native, true);
 	});
 
@@ -413,6 +421,20 @@ if (!Function.prototype.bind) {
 			' function mapDelete() {}');
 
 		a.ok(s['_.memoize.Cache']);
+	});
+	
+	test('@param - default', function(a) {
+		
+		var s = this.run('/** @param {string} [x_2=hello world] Description*/' +
+			'function a() {}');
+		
+		var p = s.a.getValue().parameters[0];
+		
+		a.ok(s.a);
+		a.equal(p.name, 'x_2');
+		a.equal(p.tags.default, 'hello world');
+		a.equal(p.tags.desc, 'Description');
+		
 	});
 	
 	module('Object', { setup: setup });
@@ -448,8 +470,21 @@ if (!Function.prototype.bind) {
 	test('MemberExpression - global', function(a) {
 		var s = this.run('var x = this.abc;');
 		
-		a.ok(!s.x.tags.missing);
 		a.ok(s.abc.tags.missing);
+		a.ok(s.abc.tags.global);
+		a.ok(s.x.tags.global);
+	});
+	
+	module('SymbolTable', { setup: setup });
+	
+	test('SymbolTable#tagClass', function(a) {
+		
+		var s = this.run('var A=function() {}, B=function() {};' +
+			'B.prototype = Object.create(A.prototype);');
+		
+		a.ok(s.A);
+		a.ok(s.B);
+		a.equal(s.B.tags.extends, s.A.getValue());
 	});
 	
 

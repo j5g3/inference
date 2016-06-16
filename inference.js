@@ -95,9 +95,6 @@
 		symbol.parent = parent;
 		symbol.tags = new Tags();
 		symbol.type = new Type();
-		
-		// Set missing as default until symbol is set.
-		symbol.tags.missing = true;
 	}
 
 	Symbol.prototype = {
@@ -126,9 +123,6 @@
 					this.copy(value);
 				else
 				{
-					if (value!==undefined)
-						delete this.tags.missing;
-					
 					if (!(value instanceof ObjectType))
 						value = new ObjectType(value);
 					
@@ -192,12 +186,17 @@
 			for (i in type.properties)
 			{
 				prop = type.properties[i];
-
-				if (prop.tags.system ||
-					(!this.options.missing && prop.tags.missing))
+				
+				if (prop.tags.system)
 					continue;
-
+				
 				value = prop.getValue();
+				
+				if (value===UnknownType || value===UndefinedType)
+					prop.tags.missing = true;
+				
+				if (!this.options.missing && prop.tags.missing)
+					continue;
 
 				this.process(prop, parent);
 
@@ -225,9 +224,10 @@
 
 			if (fn instanceof FunctionType)
 			{
-				ctor = fn.get('prototype').getValue().properties.constructor;
+				ctor = fn.get('prototype').value;
+				ctor = ctor && ctor.native && ctor.get('constructor').getValue();
 				
-				if (ctor && ctor!==Object)
+				if (ctor && ctor instanceof FunctionType)
 					symbol.tags.extends = ctor;
 			}
 		},
@@ -250,28 +250,11 @@
 				symbol.tags.static = true;
 		},
 
-		tagClass: function(symbol)
-		{
-			var val = symbol.getValue();
-			
-			if (val && !symbol.tags.method &&
-				(symbol.type.function || symbol.type.object))
-			{
-				var obj = val.properties &&
-					val.properties.prototype &&
-					val.properties.prototype.value;
-
-				if (obj)
-					symbol.tags.class = true;
-			}
-		},
-
 		processTags: function(symbol, parent)
 		{
 			this.tagAlias(symbol);
 			this.tagExtends(symbol);
 			this.tagMethod(symbol, parent);
-			this.tagClass(symbol);
 			this.tagStatic(symbol, parent);
 		},
 
@@ -338,6 +321,7 @@
 			
 			if (v===undefined) return 'undefined';
 			if (v===null) return 'null';
+			if (typeof(v)==='object') return 'object';
 			
 			return v.toString();
 		}
@@ -446,14 +430,12 @@
 		{
 			var prop;
 
-			if (type instanceof FunctionType)
-				prop = 'function';
-			else if (type instanceof Array)
+			if (type instanceof Array)
 				prop = 'array';
 			else if (type===null)
 				prop = 'null';
 			else if (type instanceof Function)
-				prop = 'native';
+				prop = 'function';
 			else
 				prop = typeof(type);
 
@@ -540,9 +522,19 @@
 		
 		var root = this.root = new ObjectType({});
 		var thisVal = root.get('this');
+		var get = root.get;
+		
 		root.scope = root;
 		thisVal.set(root);
 		thisVal.tags.system = true;
+		
+		// Assign global tag
+		root.get = function()
+		{
+			var r = get.apply(root, arguments);
+			r.tags.global = true;
+			return r;
+		};
 
 		this.module = new Symbol();
 		this.module.value = root;
@@ -1060,7 +1052,7 @@
 		{
 		var
 			fn = this.Function(node).getValue(),
-			inst, result
+			inst, result=UnknownType
 		;
 			if (fn)
 			{
@@ -1091,10 +1083,11 @@
 			result = this.Symbol(node.callee),
 			fn = result.getValue()
 		;
-			if (fn.native && fn!==UnknownType && (fn instanceof FunctionType))
-				return result;
+			if (!(fn.native && fn!==UnknownType && (fn instanceof FunctionType)) &&
+			   result.parent)
+				result.set(UnknownType);
 			
-			return this.missingFunction(node.callee);
+			return result;
 		},
 
 		default: function(node)
@@ -1137,10 +1130,7 @@
 			if (this.strict)
 				throw "Could not find symbol.";
 			
-			var symbol = this.initSymbol(node, this.scope.root, UnknownType);
-			symbol.tags.missing = true;
-			
-			return symbol;
+			return this.initSymbol(node, this.scope.root, UnknownType);
 		},
 
 		missingObject: function(obj)
@@ -1148,10 +1138,7 @@
 			var result = new ObjectType({});
 
 			if (obj instanceof Symbol)
-			{
 				obj.set(result);
-				obj.tags.missing = true;
-			}
 
 			return result;
 		},
@@ -1167,9 +1154,7 @@
 
 		missingProperty: function(obj, node)
 		{
-			var symbol = this.initSymbol(node, obj, UnknownType);
-			symbol.tags.missing = true;
-			return symbol;
+			return this.initSymbol(node, obj, UnknownType);
 		}
 
 	};
@@ -1260,6 +1245,7 @@
 				var p = match.meta.value.findParameter(match.ident);
 				p.type.parse(match.type);
 				p.tags.desc = match.text;
+				p.tags.default = match.default;
 			}
 		},
 
@@ -1271,7 +1257,9 @@
 			if (symbol.value===undefined || symbol.value === UnknownType)
 				symbol.set(new ObjectType({}));
 
-			symbol.getValue().get(match.meta.name).set(match.meta);
+			symbol = symbol.getValue().get(match.meta.name);
+			symbol.set(match.meta);
+			match.meta = symbol;
 		},
 
 		lends: function(match)
@@ -1535,12 +1523,23 @@
 		systemObject: function(name, Native)
 		{
 		var
-			s = this.scope.getGlobal(name)
+			s = this.scope.getGlobal(name),
+			properties = Object.getOwnPropertyNames(Native),
+			i=0,
+			native = function(a,b,c,d,e,f,g,h) { new Native(a,b,c,d,e,f,g,h); },
+			prop
 		;
-			s.set(extend(
-				function(a,b,c,d,e,f,g,h) { new Native(a,b,c,d,e,f,g,h); },
-				Native
-			));
+			
+			for (;i<properties.length;i++)
+				try {
+					prop = properties[i];
+					if (prop==='prototype')
+						continue;
+					
+					native[properties[i]] = Native[properties[i]];
+				} catch(e) {}
+
+			s.set(native);
 			s.tags.system = true;
 			return s;
 		},

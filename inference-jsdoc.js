@@ -77,7 +77,7 @@
 		CLEAN: /^\s*[\/\*]+\s?|[ \t]+$/gm,
 
 		TYPE: /^\{\(?([\w\d_ <>\|\.\#]+)\)?\}\s*|([\w\d_\.#]+)\s*/,
-		TYPENAMETEXT: /^\{\(?([ <>\w\d_\|\.\#]+)\)?\}\s*([\.\w\d_]*)\s*(.*)/,
+		TYPENAMETEXT: /^\{\(?([ <>\w\d_\|\.\#]+)\)?\}\s*\[?([\.\w\d_]*)(?:=([^\]]+)\])?\s*(.*)/,
 		TYPETEXT: /^(\{\(?([ <>\w\d_\|\.\#]+)\)?\})?\s*(.*)/,
 		NAMETEXT: /([\.\w\d_]+)\s*(.*)/,
 
@@ -160,7 +160,8 @@
 			{
 				current.type = m[1];
 				current.ident = m[2];
-				current.text = m[3];
+				current.default = m[3];
+				current.text = m[4];
 
 				return text.length;
 			}
@@ -208,7 +209,7 @@
 			parser = this.map[tag]
 		;
 			current.start = match.index;
-			current.type = current.ident = current.text = null;
+			current.type = current.ident = current.text = current.default = null;
 
 			l = (parser && parser.call(this, current, match[3])) || l;
 
