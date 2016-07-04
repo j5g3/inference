@@ -181,7 +181,7 @@
 		{
 			var i, prop, value;
 
-			type.parent = parent.id;
+			type.parentId = parent.id;
 
 			for (i in type.properties)
 			{
@@ -200,7 +200,7 @@
 
 				this.process(prop, parent);
 
-				if (value && !value.const && value.properties && !value.parent)
+				if (value && !value.const && value.properties && !value.parentId)
 					this.build(value, prop);
 			}
 		},
@@ -278,7 +278,7 @@
 		if (native===false) return FalseType;
 		if (native===Unknown) return UnknownType;
 		
-		var instance = native[objid];
+		var instance = native.hasOwnProperty(objid) && native[objid];
 		if (instance)
 			return instance;
 		
@@ -403,6 +403,8 @@
 		}
 
 	});
+	
+	//var ARRAY_TEST = /\[\]$/;
 
 	function Type() {}
 
@@ -417,6 +419,7 @@
 			'String': 'string',
 			'Number': 'number',
 			'Object': 'object',
+			'Function': 'function',
 			'null': 'null',
 			'object': 'object',
 			'boolean': 'boolean',
@@ -448,10 +451,15 @@
 		parseType: function(type)
 		{
 			type = type.trim();
+			
+			//if (ARRAY_TEST.test(type))
+			//	type = 'Array<' + type.slice(0, type.length-2) + '>';
+				
 		var
 			t = this.TYPES[type],
 			other = this.other || (this.other=[])
 		;
+				
 			if (t)
 				this[t] = t;
 			else
@@ -762,6 +770,8 @@
 			case '&&': return left && right;
 			case '|': return left | right;
 			case '||': return left || right;
+			case '<<': return left << right;
+			case '>>': return left >> right;
 			case '>>>': return left >>> right;
 			case 'instanceof': try {
 				return left instanceof right;
@@ -786,11 +796,34 @@
 			}
 		},
 		
+		ThrowStatement: function(node)
+		{
+			var arg = this.Value(node.argument);
+			
+			throw arg;
+		},
+		
 		TryStatement: function(node)
 		{
-			// TODO
-			this.walk(node.block);
-			this.walk(node.finalizer);
+			try {
+				this.walk(node.block);
+			} catch(e) {
+				// Function result?
+				if (e.result && e.scope)
+					throw e;
+				
+				if (node.handler)
+				{
+					var s = node.handler.param && this.Symbol(node.handler.param);
+					
+					if (s)
+						s.set(e);
+
+					this.walk(node.handler.body);
+				}	
+			} finally {
+				this.walk(node.finalizer);
+			}
 		},
 
 		String: function(node)
@@ -798,10 +831,10 @@
 			return this.walk(node).toString();
 		},
 
-		Object: function(node)
+		Object: function(node, symbol)
 		{
 		var
-			result = this.walk(node),
+			result = symbol || this.walk(node),
 			isSymbol = result instanceof Symbol,
 			value = isSymbol ? result.getValue() : result,
 			obj = value.native
@@ -820,11 +853,12 @@
 		{
 		var
 			prop = node.property,
-			object = this.Object(node.object)
+			symbol = this.walk(node.object),
+			object = this.Object(node.object, symbol)
 		;
 			if (node.computed)
 				prop = { type: 'Identifier', loc: prop.loc, name: this.String(prop) };
-			this.transferComments(node, prop);
+			this.transferComments(node, prop);			
 			
 			return this.initSymbol(prop, object);
 		},
@@ -836,10 +870,17 @@
 			var right = this.walk(node.right);
 			var left = this.Symbol(node.left);
 			
-			if (node.operator==='=')
-				left.set(right);
-			else
+			switch (node.operator) {
+			case '=': left.set(right); break;
+			case '+=':
+				if (right instanceof Symbol)
+					right = right.getValue();
+				
+				left.set(left.getValue().native + right.native);
+				break;
+			default:
 				this.unsupported(node);
+			}
 			
 			return left;
 		},
@@ -871,16 +912,17 @@
 			
 			this.walk(node.init);
 			
-			do {
+			while (this.Value(node.test) && loops-->0) {
 				this.walk(node.body);
 				this.walk(node.update);
-			} while(this.Value(node.test) && loops-->0);
+			}
 		},
 		
 		UpdateExpression: function(node)
 		{
 		var
-			left = this.Value(node.argument),
+			symbol = this.Symbol(node.argument),
+			left = symbol.getValue().native,
 			result
 		;
 			switch(node.operator) {
@@ -889,6 +931,7 @@
 			default:
 				result = this.unsupported(node);
 			}
+			symbol.set(left);
 			
 			return this.result(result);
 		},
@@ -929,7 +972,7 @@
 
 		Identifier: function(node)
 		{
-			return this.scope.get(node.name) || this.missingSymbol(node);
+			return this.initSymbol(node, this.scope);
 		},
 
 		Property: function(node, parent)
@@ -1027,7 +1070,7 @@
 						if (e.scope === fn.scope)
 							result = e.result;
 						else
-							throw e;
+							console.error(e, e.__stack);
 					} finally {
 						walker.scope.pop();
 					}
@@ -1074,7 +1117,7 @@
 		{
 			var result = this.walk(node.argument);
 			
-			throw { scope: this.scope.current, result: result };
+			throw { node: node, scope: this.scope.current, result: result };
 		},
 
 		Function: function(node)
@@ -1243,10 +1286,20 @@
 			if (match.meta.value instanceof FunctionType)
 			{
 				var p = match.meta.value.findParameter(match.ident);
+				
 				p.type.parse(match.type);
 				p.tags.desc = match.text;
 				p.tags.default = match.default;
+				
+				return p;
 			}
+		},
+		
+		'param-': function(match)
+		{
+			var p = this.param(match);
+			if (p)
+				p.type.undefined=true;
 		},
 
 		memberof: function(match)
@@ -1386,18 +1439,28 @@
 		{
 		var
 			name = node.type==='Identifier' ? node.name : this.String(node),
-			symbol = object.get(name)
+			symbol = object.get(name),
+			loc = node.loc
 		;
+			if (loc)
+			{
+				this.infer.file.symbols.push({ loc: loc, symbol: symbol });
+				node.loc = null;
+			}
+			
+			if (arguments.length===3)
+				symbol.set(value);
+			
+			if (symbol.file)
+				return symbol;
+			
 			symbol.file = this.infer.file;
-			symbol.loc = node.loc;
+			symbol.loc = loc;
 
 			if (this.system)
 				symbol.tags.system = true;
 
 			symbol.comments = node.leadingComments;
-			
-			if (arguments.length===3)
-				symbol.set(value);
 
 			return this.parseComments(symbol);
 		},
@@ -1419,10 +1482,17 @@
 
 		walkProperty: function(prop)
 		{
-			var result;
+			var result, i=0;
 			
-			for (var i=0; i<prop.length; i++)
-				result = this.walk(prop[i]);
+			try {
+				for (; i<prop.length; i++)
+					result = this.walk(prop[i]);
+			} catch (e)
+			{
+				e.__stack = e.__stack || [];
+				e.__stack.push(prop[i]);
+				throw e;
+			}
 
 			return result || this.result();
 		},
@@ -1502,11 +1572,13 @@
 				this.system('window', this.scope.get('this'));
 				this.system('self', this.scope.get('this'));
 			}
-
+			
+			this.systemObject('Function', Function);
 			this.systemObject('Object', Object);
 			this.systemObject('Date', Date);
 			this.systemObject('Array', Array);
 			this.systemObject('String', String);
+			this.systemObject('Math', Math);
 		},
 
 		/**
@@ -1526,21 +1598,33 @@
 			s = this.scope.getGlobal(name),
 			properties = Object.getOwnPropertyNames(Native),
 			i=0,
-			native = function(a,b,c,d,e,f,g,h) { new Native(a,b,c,d,e,f,g,h); },
-			prop
+			native = function() {
+			var
+				r = Object.create(Native.prototype),
+				inst = Native.apply(r, arguments)
+			;
+				return inst || r;
+			},
+			prop, value
 		;
-			
 			for (;i<properties.length;i++)
 				try {
 					prop = properties[i];
 					if (prop==='prototype')
 						continue;
+					else
+						value = Native[properties[i]];
 					
-					native[properties[i]] = Native[properties[i]];
+					native[properties[i]] = value;
 				} catch(e) {}
 
 			s.set(native);
 			s.tags.system = true;
+			
+			Object.defineProperty(Native, objid,
+				{ configurable: true, enumerable: false,
+				 value: s.getValue() });
+			
 			return s;
 		},
 		
@@ -1566,7 +1650,7 @@
 			return this.walker.walk(ast);
 		},
 		
-/*		findAll: function(filename, line, ch, token, id)
+		findAll: function(filename, line, ch, token, id)
 		{
 		var
 			result = {},
@@ -1575,12 +1659,12 @@
 		;
 			if (symbol)
 			{
-				result.symbol = symbol.symbol;
-				id = result.symbol.name.substr(0, ch-symbol.startCh);
-				parent = symbol.symbol.parent;
+				result.symbol = symbol;
+				id = result.symbol.name.substr(0, ch-symbol.loc.start.column);
+				parent = symbol.parent;
 				
 				if (parent)
-					result.suggestions = this.findSuggestions(parent.properties, id, result.symbol);
+					result.suggestions = this.findSuggestions(parent, id, result.symbol);
 			} else
 			{
 				parent = this.findScope(filename, line, ch);
@@ -1590,12 +1674,12 @@
 					result.symbol = symbol;
 				
 				do {
-					result.suggestions = this.findSuggestions(parent.symbols, id, result.symbol);
+					result.suggestions = this.findSuggestions(parent, id, result.symbol);
 				} while ((parent = parent.parent));
 			}
 			
 			return result;
-		},*/
+		},
 		
 		findSymbol: function(id, scope)
 		{
@@ -1629,11 +1713,20 @@
 		
 		findSuggestions: function(obj, id)
 		{
-			var result = [];
+		var
+			result = {}
+		;
+			obj = obj.native;
 			
-			for (var i in obj)
-				if (!id || i.indexOf(id)===0)
-					result.push(obj[i]);
+			function parse(n)
+			{
+				if (n !== objid && (!id || n.indexOf(id)===0))
+					result[n] = obj[n];
+			}
+			
+			do {
+				Object.getOwnPropertyNames(obj).forEach(parse);
+			} while ((obj = Object.getPrototypeOf(obj)));
 			
 			return result;
 		},
@@ -1657,9 +1750,10 @@
 		findMember: function(filename, line, ch)
 		{
 		var
-			file = this.files[filename]
+			file = this.files[filename],
+			member = file && this.findInMap(file.symbols, line, ch)
 		;
-			return file && this.findInMap(file.map, line, ch);
+			return member && member.symbol;
 		},
 		
 		findScope: function(filename, line, ch)

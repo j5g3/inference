@@ -70,15 +70,19 @@
 
 		this.map = this._buildMap();
 	}
+	
+	var TYPE = '(?:\\{\\(?([^}]+)\\)?\\})';
+	var NAME = '(?:([\\.\\w\\d\\_]+)|\\[([^\\]=]+)=?(.+)?\\])';
+	
 
 	JSDocParser.prototype = {
 
-		REGEX: /@(\w+)([ \t]*)([^@]*)/gm,
-		CLEAN: /^\s*[\/\*]+\s?|[ \t]+$/gm,
+		REGEX: /@(\w+\-?)([ \t]*)([^@]*)/gm,
+		CLEAN: /^[ \t]*[\/\*]+\s?|[ \t]+$/gm,
 
 		TYPE: /^\{\(?([\w\d_ <>\|\.\#]+)\)?\}\s*|([\w\d_\.#]+)\s*/,
-		TYPENAMETEXT: /^\{\(?([ <>\w\d_\|\.\#]+)\)?\}\s*\[?([\.\w\d_]*)(?:=([^\]]+)\])?\s*(.*)/,
-		TYPETEXT: /^(\{\(?([ <>\w\d_\|\.\#]+)\)?\})?\s*(.*)/,
+		TYPENAMETEXT: new RegExp('^' + TYPE + '\\s*' + NAME + '?\\s*(.*)'),
+		TYPETEXT: new RegExp('^' + TYPE + '?\\s*(.*)'),
 		NAMETEXT: /([\.\w\d_]+)\s*(.*)/,
 
 		alias: {
@@ -97,7 +101,7 @@
 			// @tag {type}
 			parseType: 'alias|borrows|callback|constant|constructs|const|enum|emits|event|type|exports|extends|external|fires|lends|memberof|method|mixes|mixin|name',
 			// @tag [{type} name text]
-			parseTypeNameText: 'param|property|typedef',
+			parseTypeNameText: 'param-|param|property|typedef',
 			// @tag [{type} text]
 			parseTypeText: 'returns|this|category',
 			// @tag [text]
@@ -159,9 +163,9 @@
 			if (m)
 			{
 				current.type = m[1];
-				current.ident = m[2];
-				current.default = m[3];
-				current.text = m[4];
+				current.ident = m[2] || m[3];
+				current.default = m[4];
+				current.text = m[5];
 
 				return text.length;
 			}
@@ -174,8 +178,12 @@
 		parseTypeText: function(current, text)
 		{
 			var m = this.TYPETEXT.exec(text);
-			current.type = m[2];
-			current.text = m[3];
+			
+			if (m) {
+				current.type = m[1];
+				current.text = m[2];
+			}
+			
 			return text.length;
 		},
 

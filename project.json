@@ -6,8 +6,13 @@
 		"rules": {
 			
 			"inference": {
-				"files": "inference*.js",
+				"files": ["inference.js", "inference-jsdoc.js"],
 				"tasks": "grunt default karma"
+			},
+			
+			"test": {
+				"files": "test/**/*.js",
+				"tasks": "grunt karma"
 			}
 			
 		}

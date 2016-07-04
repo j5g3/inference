@@ -3,53 +3,16 @@
 <head>
 	<title>inference.js - Test Suite</title>
 
-	<script src="//code.jquery.com/qunit/qunit-1.18.0.js"></script>
+	<script src="../node_modules/qunitjs/qunit/qunit.js"></script>
 	<script src="../node_modules/esprima/esprima.js"></script>
 	<script src="../inference-jsdoc.js"></script>
 	<script src="../inference.js"></script>
 
-	<link rel="stylesheet" href="//code.jquery.com/qunit/qunit-1.18.0.css" />
+	<link rel="stylesheet" href="../node_modules/qunitjs/qunit/qunit.css" />
 </head>
 <body>
 	<div id="qunit"></div>
 	<div id="qunit-fixture"></div>
-	<script id="copyObject" type="text/plain">
-	function assignValue(object, key, value) {
-      var objValue = object[key];
-      if (!(object.hasOwnProperty(key) && objValue===value) ||
-          (value === undefined && !(key in object))) {
-        object[key] = value;
-      }
-    }
-	
-	/**
-     * Copies properties of `source` to `object`.
-     *
-     * @private
-     * @param {Object} source The object to copy properties from.
-     * @param {Array} props The property identifiers to copy.
-     * @param {Object} [object={}] The object to copy properties to.
-     * @param {Function} [customizer] The function to customize copied values.
-     * @returns {Object} Returns `object`.
-     */
-    function copyObject(source, props, object, customizer) {
-      object || (object = {});
-
-      var index = -1,
-          length = props.length;
-
-      while (++index < length) {
-        var key = props[index];
-
-        var newValue = customizer
-          ? customizer(object[key], source[key], key, object, source)
-          : source[key];
-
-        assignValue(object, key, newValue);
-      }
-      return object;
-    }
-	</script>
 	<script src="standalone.js"></script>
 </body>
 </html>
